@@ -1595,7 +1595,18 @@
         let isWakeWordListening = false;
         let wakeWordEnabled = false;
         let wakeWordTriggered = false;  // Prevents multiple triggers
-        const WAKE_WORDS = ['ai guy', 'hey pi guy', 'pi guy', 'hey ai', 'a i guy', 'pie guy', 'hey pie guy', 'hi guy', 'hey hi guy'];
+        const WAKE_WORDS = [
+            // Pi Guy variations
+            'pi guy', 'hey pi guy', 'pie guy', 'hey pie guy',
+            // AI Guy variations
+            'ai guy', 'hey ai guy', 'a i guy', 'hey ai',
+            // Foam Bot variations (for foam people)
+            'foam bot', 'hey foam bot', 'foambot', 'phone bot', 'hey phone bot',
+            // Other common misheard variations
+            'hi guy', 'hey hi guy', 'my guy', 'hey my guy',
+            'five guy', 'fly guy', 'by guy', 'buy guy',
+            'fi guy', 'fy guy', 'psy guy', 'sci guy'
+        ];
 
         window.toggleWakeWord = async function() {
             if (wakeWordEnabled) {
