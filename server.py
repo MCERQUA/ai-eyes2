@@ -7,7 +7,7 @@ Handles vision requests from ElevenLabs agent using Gemini Vision API
 import os
 import base64
 import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
@@ -17,6 +17,11 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/')
+def serve_index():
+    """Serve the main index.html page"""
+    return send_file('index.html')
 
 # Configure Gemini
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
