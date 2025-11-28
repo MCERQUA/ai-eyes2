@@ -1142,6 +1142,7 @@
         let wakeWordRecognition = null;
         let isWakeWordListening = false;
         let wakeWordEnabled = false;
+        let wakeWordTriggered = false;  // Prevents multiple triggers
         const WAKE_WORDS = ['ai guy', 'hey pi guy', 'pi guy', 'hey ai', 'a i guy', 'pie guy', 'hey pie guy', 'hi guy', 'hey hi guy'];
 
         window.toggleWakeWord = async function() {
@@ -1179,6 +1180,9 @@
                 return false;
             }
 
+            // Reset trigger flag when starting fresh
+            wakeWordTriggered = false;
+
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             wakeWordRecognition = new SpeechRecognition();
             wakeWordRecognition.continuous = true;
@@ -1186,8 +1190,8 @@
             wakeWordRecognition.lang = 'en-US';
 
             wakeWordRecognition.onresult = (event) => {
-                // Don't listen for wake word while in conversation or connecting
-                if (conversation || isConnecting) return;
+                // Don't listen for wake word while in conversation, connecting, or already triggered
+                if (conversation || isConnecting || wakeWordTriggered) return;
 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript.toLowerCase().trim();
@@ -1197,6 +1201,8 @@
                     for (const wakeWord of WAKE_WORDS) {
                         if (transcript.includes(wakeWord)) {
                             console.log('Wake word detected!', wakeWord);
+                            // Set flag immediately to prevent any more triggers
+                            wakeWordTriggered = true;
                             // Stop wake word listener and start conversation
                             stopWakeWordListener();
                             toggleConversation();
