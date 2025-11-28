@@ -1438,7 +1438,7 @@
             setTimeout(() => {
                 // Only change expression if not in conversation and not already in a mood
                 if (!conversation && currentMood === 'neutral') {
-                    const expressions = ['thinking', 'happy'];
+                    const expressions = ['angry', 'angry', 'angry', 'thinking', 'happy'];
                     const randomExpr = expressions[Math.floor(Math.random() * expressions.length)];
                     setMood(randomExpr);
 
