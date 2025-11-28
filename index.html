@@ -130,27 +130,27 @@
             right: 12px;
         }
 
-        /* Eyelids - full circles for complete coverage */
+        /* Eyelids - half circles that fully cover the eye */
         .eyelid-top {
             position: absolute;
-            width: 160%;
-            height: 160%;
+            width: 140%;
+            height: 80%;
             background: var(--dark-bg);
-            top: -130%;
-            left: -30%;
-            border-radius: 50%;
+            top: -50%;
+            left: -20%;
+            border-radius: 50% 50% 50% 50% / 100% 100% 0% 0%;
             transition: transform 0.15s ease-in-out;
             z-index: 10;
         }
 
         .eyelid-bottom {
             position: absolute;
-            width: 160%;
-            height: 160%;
+            width: 140%;
+            height: 80%;
             background: var(--dark-bg);
-            bottom: -130%;
-            left: -30%;
-            border-radius: 50%;
+            bottom: -50%;
+            left: -20%;
+            border-radius: 50% 50% 50% 50% / 0% 0% 100% 100%;
             transition: transform 0.15s ease-in-out;
             z-index: 10;
         }
