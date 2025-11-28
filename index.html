@@ -1186,8 +1186,8 @@
             wakeWordRecognition.lang = 'en-US';
 
             wakeWordRecognition.onresult = (event) => {
-                // Don't listen for wake word while in conversation
-                if (conversation) return;
+                // Don't listen for wake word while in conversation or connecting
+                if (conversation || isConnecting) return;
 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript.toLowerCase().trim();
@@ -1197,8 +1197,8 @@
                     for (const wakeWord of WAKE_WORDS) {
                         if (transcript.includes(wakeWord)) {
                             console.log('Wake word detected!', wakeWord);
-                            // Stop wake word listener temporarily and start conversation
-                            if (wakeWordRecognition) wakeWordRecognition.stop();
+                            // Stop wake word listener and start conversation
+                            stopWakeWordListener();
                             toggleConversation();
                             return;
                         }
@@ -1207,10 +1207,10 @@
             };
 
             wakeWordRecognition.onend = () => {
-                // Restart if wake word mode is enabled and not in a conversation
-                if (wakeWordEnabled && !conversation) {
+                // Restart if wake word mode is enabled and not in a conversation or connecting
+                if (wakeWordEnabled && !conversation && !isConnecting) {
                     setTimeout(() => {
-                        if (wakeWordEnabled && !conversation && wakeWordRecognition) {
+                        if (wakeWordEnabled && !conversation && !isConnecting && wakeWordRecognition) {
                             try {
                                 wakeWordRecognition.start();
                             } catch (e) {
