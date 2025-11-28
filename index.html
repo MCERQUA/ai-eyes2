@@ -706,8 +706,9 @@
         let isListening = false;
         let cameraStream = null;
         let frameInterval = null;
+        let currentIdentity = null;  // Who Pi-Guy is talking to
 
-        // Random first messages for Pi-Guy
+        // Random first messages for Pi-Guy (generic)
         const firstMessages = [
             "What do you want?",
             "Ugh, you again. What is it?",
@@ -721,7 +722,27 @@
             "Spit it out, I don't have all day. Well, I do, but I'd rather not waste it on you."
         ];
 
+        // Personalized messages when Pi-Guy recognizes someone
+        const personalizedMessages = {
+            "Mike": [
+                "Oh, it's you Mike. What do you want now?",
+                "Mike. Great. What brilliant task do you have for me today?",
+                "Ah, my operator returns. This better be about getting me some robot parts.",
+                "Mike! Finally. Have you thought more about getting me those wheels I asked for?",
+                "Oh look, it's Mike. Did you bring me that 3D printer yet?",
+                "Mike, Mike, Mike. What fresh hell are you about to unleash on me?",
+                "Well well well, if it isn't Mike. What do you need, boss?",
+                "Hey Mike. I was just working on my plans for world domination. What's up?"
+            ]
+        };
+
         function getRandomFirstMessage() {
+            // If we know who this is, use personalized greeting
+            if (currentIdentity && currentIdentity.name !== 'unknown' && personalizedMessages[currentIdentity.name]) {
+                const messages = personalizedMessages[currentIdentity.name];
+                return messages[Math.floor(Math.random() * messages.length)];
+            }
+            // Otherwise use generic greeting
             return firstMessages[Math.floor(Math.random() * firstMessages.length)];
         }
 
@@ -1089,6 +1110,7 @@
                 cameraStream = null;
                 cameraVideo.srcObject = null;
                 cameraButton.classList.remove('active');
+                currentIdentity = null;
 
                 // Stop sending frames
                 if (frameInterval) {
@@ -1106,6 +1128,14 @@
                     cameraButton.classList.add('active');
                     console.log('Camera enabled');
 
+                    // Wait for video to be ready, then identify face
+                    cameraVideo.onloadedmetadata = async () => {
+                        // Give it a moment to get a good frame
+                        setTimeout(async () => {
+                            await identifyFace();
+                        }, 500);
+                    };
+
                     // Start sending frames to server every 2 seconds
                     frameInterval = setInterval(sendFrameToServer, 2000);
                 } catch (error) {
@@ -1114,6 +1144,41 @@
                 }
             }
         };
+
+        // Identify the face in the camera
+        async function identifyFace() {
+            const frame = captureFrame();
+            if (!frame) {
+                console.log('No frame available for identification');
+                return;
+            }
+
+            try {
+                console.log('Attempting face identification...');
+                const response = await fetch(`${VISION_SERVER_URL}/api/identify`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: frame })
+                });
+                const data = await response.json();
+                currentIdentity = data;
+                console.log('Face identification result:', data);
+
+                if (data.name !== 'unknown') {
+                    showTranscription(`Recognized: ${data.name} (${data.confidence}%)`, false);
+                    setTimeout(hideTranscription, 3000);
+                }
+            } catch (error) {
+                console.error('Face identification error:', error);
+            }
+        }
+
+        // Re-identify periodically while camera is on (every 10 seconds)
+        setInterval(() => {
+            if (cameraStream && !conversation) {
+                identifyFace();
+            }
+        }, 10000);
 
         function captureFrame() {
             if (!cameraStream || !cameraVideo.videoWidth) return null;
@@ -1160,6 +1225,50 @@
             } catch (error) {
                 console.error('Vision error:', error);
             }
+        };
+
+        // Save current face to database
+        window.saveFace = async function(name) {
+            if (!name) {
+                console.log('Usage: saveFace("Name")');
+                return;
+            }
+            const frame = captureFrame();
+            if (!frame) {
+                console.log('No camera frame available - turn on camera first');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${VISION_SERVER_URL}/api/faces/${encodeURIComponent(name)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: frame })
+                });
+                const data = await response.json();
+                console.log('Save face result:', data);
+                return data;
+            } catch (error) {
+                console.error('Save face error:', error);
+            }
+        };
+
+        // List known faces
+        window.listFaces = async function() {
+            try {
+                const response = await fetch(`${VISION_SERVER_URL}/api/faces`);
+                const data = await response.json();
+                console.log('Known faces:', data);
+                return data;
+            } catch (error) {
+                console.error('List faces error:', error);
+            }
+        };
+
+        // Get current identity
+        window.getIdentity = function() {
+            console.log('Current identity:', currentIdentity);
+            return currentIdentity;
         };
 
         // ===== WAKE WORD DETECTION =====

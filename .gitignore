@@ -16,3 +16,9 @@ Thumbs.db
 # Build (if using bundler later)
 dist/
 build/
+
+# Server logs
+server.log
+
+# DeepFace cache (regenerated automatically)
+*.pkl

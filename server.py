@@ -2,11 +2,15 @@
 """
 Pi-Guy Vision Server
 Handles vision requests from ElevenLabs agent using Gemini Vision API
+Also handles face recognition using DeepFace
 """
 
 import os
 import base64
 import json
+import shutil
+import tempfile
+from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -17,6 +21,22 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# Face recognition setup
+KNOWN_FACES_DIR = Path(__file__).parent / "known_faces"
+KNOWN_FACES_DIR.mkdir(exist_ok=True)
+
+# Lazy load DeepFace (it's heavy)
+_deepface = None
+def get_deepface():
+    global _deepface
+    if _deepface is None:
+        from deepface import DeepFace
+        _deepface = DeepFace
+    return _deepface
+
+# Current identified person (persists during session)
+current_identity = None
 
 @app.route('/')
 def serve_index():
@@ -134,6 +154,171 @@ Don't mention that you're an AI or that this is an image - just describe what yo
         return jsonify({
             "response": "Ugh, my vision circuits are acting up. I can't process what I'm seeing right now. Typical."
         })
+
+# ===== FACE RECOGNITION ENDPOINTS =====
+
+@app.route('/api/identify', methods=['POST'])
+def identify_face():
+    """
+    Identify who is in the camera frame using DeepFace
+    Returns the name of the person or 'unknown'
+    """
+    global current_identity
+
+    data = request.get_json()
+    if not data or 'image' not in data:
+        return jsonify({"error": "No image data provided"}), 400
+
+    try:
+        # Decode base64 image
+        image_data = data['image']
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        image_bytes = base64.b64decode(image_data)
+
+        # Check if we have any known faces
+        known_people = [d.name for d in KNOWN_FACES_DIR.iterdir() if d.is_dir() and any(d.iterdir())]
+        if not known_people:
+            current_identity = {"name": "unknown", "confidence": 0, "message": "No known faces in database"}
+            return jsonify(current_identity)
+
+        # Save temp file for DeepFace
+        with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp:
+            tmp.write(image_bytes)
+            tmp_path = tmp.name
+
+        try:
+            DeepFace = get_deepface()
+
+            # Search for face in known_faces database
+            results = DeepFace.find(
+                img_path=tmp_path,
+                db_path=str(KNOWN_FACES_DIR),
+                model_name='VGG-Face',
+                enforce_detection=False,
+                silent=True
+            )
+
+            # Results is a list of DataFrames (one per face detected)
+            if results and len(results) > 0 and len(results[0]) > 0:
+                df = results[0]
+                # Get best match (lowest distance)
+                best_match = df.iloc[0]
+                identity_path = best_match['identity']
+                distance = best_match['distance']
+
+                # Extract person name from path (known_faces/Mike/photo.jpg -> Mike)
+                person_name = Path(identity_path).parent.name
+
+                # VGG-Face threshold is typically 0.4
+                confidence = max(0, (1 - distance / 0.6)) * 100
+
+                if distance < 0.4:
+                    current_identity = {
+                        "name": person_name,
+                        "confidence": round(confidence, 1),
+                        "message": f"Identified as {person_name}"
+                    }
+                else:
+                    current_identity = {
+                        "name": "unknown",
+                        "confidence": round(confidence, 1),
+                        "message": "Face detected but not recognized"
+                    }
+            else:
+                current_identity = {
+                    "name": "unknown",
+                    "confidence": 0,
+                    "message": "No face detected in frame"
+                }
+
+        finally:
+            os.unlink(tmp_path)
+
+        print(f"Face identification: {current_identity}")
+        return jsonify(current_identity)
+
+    except Exception as e:
+        print(f"Face identification error: {e}")
+        current_identity = {"name": "unknown", "confidence": 0, "message": str(e)}
+        return jsonify(current_identity)
+
+@app.route('/api/identity', methods=['GET'])
+def get_identity():
+    """Get the currently identified person"""
+    global current_identity
+    if current_identity:
+        return jsonify(current_identity)
+    return jsonify({"name": "unknown", "confidence": 0, "message": "No identification performed yet"})
+
+@app.route('/api/faces', methods=['GET'])
+def list_faces():
+    """List all known faces in the database"""
+    faces = {}
+    for person_dir in KNOWN_FACES_DIR.iterdir():
+        if person_dir.is_dir():
+            images = [f.name for f in person_dir.iterdir() if f.suffix.lower() in ['.jpg', '.jpeg', '.png']]
+            if images:
+                faces[person_dir.name] = images
+    return jsonify(faces)
+
+@app.route('/api/faces/<name>', methods=['POST'])
+def add_face(name):
+    """
+    Add a new face image for a person
+    Expects base64 image in JSON body
+    """
+    data = request.get_json()
+    if not data or 'image' not in data:
+        return jsonify({"error": "No image data provided"}), 400
+
+    try:
+        # Create person directory if needed
+        person_dir = KNOWN_FACES_DIR / name
+        person_dir.mkdir(exist_ok=True)
+
+        # Count existing images
+        existing = len(list(person_dir.glob('*.jpg')))
+
+        # Decode and save image
+        image_data = data['image']
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
+        image_bytes = base64.b64decode(image_data)
+
+        image_path = person_dir / f"{name}_{existing + 1}.jpg"
+        with open(image_path, 'wb') as f:
+            f.write(image_bytes)
+
+        # Clear DeepFace cache so it re-indexes
+        cache_file = KNOWN_FACES_DIR / "representations_vgg_face.pkl"
+        if cache_file.exists():
+            cache_file.unlink()
+
+        return jsonify({
+            "status": "success",
+            "message": f"Added face image for {name}",
+            "path": str(image_path)
+        })
+
+    except Exception as e:
+        print(f"Add face error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/faces/<name>', methods=['DELETE'])
+def remove_face(name):
+    """Remove all face images for a person"""
+    person_dir = KNOWN_FACES_DIR / name
+    if person_dir.exists():
+        shutil.rmtree(person_dir)
+
+        # Clear DeepFace cache
+        cache_file = KNOWN_FACES_DIR / "representations_vgg_face.pkl"
+        if cache_file.exists():
+            cache_file.unlink()
+
+        return jsonify({"status": "success", "message": f"Removed {name} from database"})
+    return jsonify({"error": f"{name} not found"}), 404
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))

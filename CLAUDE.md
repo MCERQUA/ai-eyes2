@@ -8,13 +8,16 @@ An interactive voice agent with an animated sci-fi face, powered by ElevenLabs C
 - **Backend**: Flask server on VPS (https://ai-guy.mikecerqua.ca)
 - **Voice**: ElevenLabs Conversational AI
 - **Vision**: Google Gemini 2.0 Flash
+- **Face Recognition**: DeepFace (VGG-Face model)
 
 ## Files
 ```
 ├── index.html          # Main app (face + voice agent + camera)
-├── server.py           # Flask backend for vision API
+├── server.py           # Flask backend for vision + face recognition API
 ├── requirements.txt    # Python dependencies
 ├── setup-nginx.sh      # Nginx + SSL setup script
+├── known_faces/        # Face recognition database
+│   └── Mike/           # Folder per person with their photos
 ├── .env                # API keys (not in git)
 ├── CLAUDE.md           # This file
 └── .gitignore
@@ -54,12 +57,29 @@ An interactive voice agent with an animated sci-fi face, powered by ElevenLabs C
 - **Random first messages** - Pi-Guy greets differently each time
 - **Real-time transcription**: Shows what you and the agent say
 - **Status indicators**: Connecting, connected, listening, speaking
+- **Keyboard shortcuts**: Space/Enter to toggle conversation, Escape to end
+
+### Wake Word Activation
+- **Wake words**: "Pi Guy", "Hey Pi Guy", "AI Guy", "Hey AI", "Hi Guy"
+- **Click mic button** to enable/disable wake word listening
+- **Always-on listening** - starts conversation hands-free when wake word detected
+- **Auto-restarts** after conversation ends (if enabled)
+- **800ms delay** after detection to release mic before starting conversation
+- Uses browser's Web Speech API (Chrome recommended)
 
 ### Vision (Camera)
 - **Camera button** with live preview inside the button
 - **Captures frames** every 2 seconds and sends to server
 - **Gemini Vision API** analyzes images with Pi-Guy's personality
 - **Voice describes** what he "sees" in his sarcastic way
+
+### Face Recognition
+- **Automatic identification** when camera turns on
+- **DeepFace** with VGG-Face model (99%+ accuracy)
+- **Personalized greetings** - Pi-Guy greets known people by name
+- **Re-identifies every 10 seconds** while camera is on (if not in conversation)
+- **Database structure**: `known_faces/<PersonName>/<photos>.jpg`
+- Add faces via console: `saveFace("Name")` with camera on
 
 ## API Endpoints
 
@@ -71,6 +91,11 @@ An interactive voice agent with an animated sci-fi face, powered by ElevenLabs C
 | `/api/health` | GET | Health check |
 | `/api/frame` | POST | Receive camera frame from client |
 | `/api/vision` | GET/POST | Analyze latest frame with Gemini |
+| `/api/identify` | POST | Identify face in image using DeepFace |
+| `/api/identity` | GET | Get currently identified person |
+| `/api/faces` | GET | List all known faces in database |
+| `/api/faces/<name>` | POST | Add face image for a person |
+| `/api/faces/<name>` | DELETE | Remove a person from database |
 
 ## Starting the Server
 
@@ -120,16 +145,41 @@ curl "https://api.elevenlabs.io/v1/convai/tools" \
   -H "xi-api-key: $ELEVENLABS_API_KEY"
 ```
 
-## Face API (JavaScript Console)
+## JavaScript Console API
 
 ```javascript
+// Face control
 piGuy.setMood('happy')    // happy, sad, angry, thinking, surprised, listening, neutral
 piGuy.blink()
 piGuy.setAgentId('new-id')
 piGuy.getConversation()
+
+// Camera & Vision
 toggleCamera()            // Toggle camera on/off
+toggleWakeWord()          // Toggle wake word listening
 captureAndDescribe()      // Test vision locally
+
+// Face Recognition
+saveFace("Mike")          // Save current camera frame as Mike's face
+listFaces()               // List all known faces in database
+getIdentity()             // Get current identified person
+identifyFace()            // Manually trigger face identification
 ```
+
+## Adding a New Person to Face Database
+
+1. Turn on camera (click camera button)
+2. Have the person look at the camera
+3. Open browser console (F12)
+4. Run: `saveFace("PersonName")`
+5. Repeat 2-3 times with different angles/lighting
+6. Test by refreshing and turning camera on - should show "Recognized: PersonName"
+
+**Tips for better recognition:**
+- Add 3-5 photos per person
+- Include different angles (front, slight left/right)
+- Include different lighting conditions
+- Make sure face is clearly visible and not blurry
 
 ## Future Ideas / TODOs
 - Add more tools (weather, time, web search)
@@ -138,9 +188,12 @@ captureAndDescribe()      // Test vision locally
 - Different "moods" based on conversation
 - Screen sharing capability
 - Multiple camera support
+- Admin UI for managing face database
 
 ## Notes
 - **HTTPS Required**: Both mic and camera require secure context
 - **Browser Support**: Chrome, Firefox, Edge, Safari (modern versions)
+- **Chrome recommended**: Wake word (Web Speech API) works best in Chrome
 - **Server must be running** for vision to work
 - **Camera permission** needed for vision feature
+- **Microphone permission** needed for voice and wake word features
