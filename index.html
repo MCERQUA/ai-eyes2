@@ -133,11 +133,11 @@
         /* Eyelids */
         .eyelid-top {
             position: absolute;
-            width: 130%;
-            height: 75%;
+            width: 140%;
+            height: 80%;
             background: var(--dark-bg);
-            top: -60%;
-            left: -15%;
+            top: -65%;
+            left: -20%;
             border-radius: 0 0 50% 50%;
             transition: transform 0.15s ease-in-out;
             z-index: 10;
@@ -145,23 +145,23 @@
 
         .eyelid-bottom {
             position: absolute;
-            width: 130%;
-            height: 40%;
+            width: 140%;
+            height: 50%;
             background: var(--dark-bg);
-            bottom: -35%;
-            left: -15%;
+            bottom: -42%;
+            left: -20%;
             border-radius: 50% 50% 0 0;
             transition: transform 0.15s ease-in-out;
             z-index: 10;
         }
 
-        /* Blink animation */
+        /* Blink animation - eyelids meet in the middle */
         .eye.blinking .eyelid-top {
-            transform: translateY(90%);
+            transform: translateY(95%);
         }
 
         .eye.blinking .eyelid-bottom {
-            transform: translateY(-30%);
+            transform: translateY(-45%);
         }
 
         /* Mood: Angry */
