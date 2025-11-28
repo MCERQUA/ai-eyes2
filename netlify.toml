@@ -1,0 +1,6 @@
+[build]
+  publish = "."
+
+# Ignore secret scanning for Clerk publishable key (pk_ keys are meant to be public)
+[build.environment]
+  CLERK_PUBLISHABLE_KEY_IS_PUBLIC = "true"
