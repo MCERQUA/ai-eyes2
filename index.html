@@ -1076,6 +1076,92 @@
             }
         };
 
+        // ===== WAKE WORD DETECTION =====
+        let wakeWordRecognition = null;
+        let isWakeWordListening = false;
+        const WAKE_WORDS = ['ai guy', 'hey pi guy', 'pi guy', 'hey ai', 'a i guy'];
+
+        function startWakeWordListener() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.log('Wake word not supported - Speech Recognition API not available');
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            wakeWordRecognition = new SpeechRecognition();
+            wakeWordRecognition.continuous = true;
+            wakeWordRecognition.interimResults = true;
+            wakeWordRecognition.lang = 'en-US';
+
+            wakeWordRecognition.onresult = (event) => {
+                // Don't listen for wake word while in conversation
+                if (conversation) return;
+
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript.toLowerCase().trim();
+                    console.log('Heard:', transcript);
+
+                    // Check if any wake word is in the transcript
+                    for (const wakeWord of WAKE_WORDS) {
+                        if (transcript.includes(wakeWord)) {
+                            console.log('Wake word detected!', wakeWord);
+                            // Stop wake word listener and start conversation
+                            stopWakeWordListener();
+                            toggleConversation();
+                            return;
+                        }
+                    }
+                }
+            };
+
+            wakeWordRecognition.onend = () => {
+                // Restart if we're supposed to be listening and not in a conversation
+                if (isWakeWordListening && !conversation) {
+                    wakeWordRecognition.start();
+                }
+            };
+
+            wakeWordRecognition.onerror = (event) => {
+                console.log('Wake word error:', event.error);
+                if (event.error === 'not-allowed') {
+                    console.log('Microphone permission denied for wake word');
+                    isWakeWordListening = false;
+                }
+            };
+
+            try {
+                wakeWordRecognition.start();
+                isWakeWordListening = true;
+                console.log('Wake word listener started - say "AI Guy" or "Hey Pi Guy"');
+            } catch (e) {
+                console.log('Could not start wake word listener:', e);
+            }
+        }
+
+        function stopWakeWordListener() {
+            if (wakeWordRecognition) {
+                isWakeWordListening = false;
+                wakeWordRecognition.stop();
+            }
+        }
+
+        // Restart wake word listener when conversation ends
+        const originalToggleConversation = window.toggleConversation;
+        window.toggleConversation = async function() {
+            const wasInConversation = !!conversation;
+            await originalToggleConversation();
+
+            // If conversation just ended, restart wake word listener
+            if (wasInConversation && !conversation) {
+                setTimeout(() => {
+                    startWakeWordListener();
+                }, 1000);
+            }
+        };
+
+        // Start wake word listener on page load
+        startWakeWordListener();
+
         // ===== KEYBOARD SHORTCUTS =====
         document.addEventListener('keydown', (e) => {
             if (e.key === ' ' || e.key === 'Enter') {
