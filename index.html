@@ -344,6 +344,43 @@
             50% { box-shadow: 0 0 30px rgba(255, 221, 0, 0.6); }
         }
 
+        /* Wake word button */
+        .wake-button {
+            position: absolute;
+            bottom: 40px;
+            left: calc(50% - 120px);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: 3px solid var(--blue-dim);
+            background: var(--panel-bg);
+            color: var(--blue-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .wake-button:hover {
+            box-shadow: 0 0 20px rgba(0, 136, 255, 0.5);
+            border-color: var(--blue);
+        }
+
+        .wake-button.active {
+            border-color: var(--green);
+            color: var(--green);
+            box-shadow: 0 0 20px rgba(0, 255, 102, 0.4);
+            animation: wake-pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes wake-pulse {
+            0%, 100% { box-shadow: 0 0 15px rgba(0, 255, 102, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(0, 255, 102, 0.6); }
+        }
+
         /* Camera button */
         .camera-button {
             position: absolute;
@@ -598,6 +635,11 @@
     <!-- Error message -->
     <div class="error-message" id="error-message"></div>
 
+    <!-- Wake word button -->
+    <button class="wake-button" id="wake-button" onclick="toggleWakeWord()">
+        <span id="wake-icon">🎤</span>
+    </button>
+
     <!-- Call button -->
     <button class="call-button" id="call-button" onclick="toggleConversation()">
         <span id="call-icon">📞</span>
@@ -613,7 +655,7 @@
     <canvas id="capture-canvas" style="display: none;"></canvas>
 
     <div class="instructions">
-        Click phone to talk, camera to enable vision
+        🎤 Voice activate | 📞 Talk | 📷 Vision
     </div>
 
     <!-- ElevenLabs Conversational AI SDK -->
@@ -671,6 +713,8 @@
         const cameraButton = document.getElementById('camera-button');
         const cameraVideo = document.getElementById('camera-video');
         const captureCanvas = document.getElementById('capture-canvas');
+        const wakeButton = document.getElementById('wake-button');
+        const wakeIcon = document.getElementById('wake-icon');
 
         // ===== SETUP =====
         if (agentId) {
@@ -1079,12 +1123,30 @@
         // ===== WAKE WORD DETECTION =====
         let wakeWordRecognition = null;
         let isWakeWordListening = false;
+        let wakeWordEnabled = false;
         const WAKE_WORDS = ['ai guy', 'hey pi guy', 'pi guy', 'hey ai', 'a i guy'];
+
+        window.toggleWakeWord = function() {
+            if (wakeWordEnabled) {
+                stopWakeWordListener();
+                wakeWordEnabled = false;
+                wakeButton.classList.remove('active');
+                wakeIcon.textContent = '🎤';
+                console.log('Wake word disabled');
+            } else {
+                startWakeWordListener();
+                wakeWordEnabled = true;
+                wakeButton.classList.add('active');
+                wakeIcon.textContent = '👂';
+                console.log('Wake word enabled - say "AI Guy" or "Hey Pi Guy"');
+            }
+        };
 
         function startWakeWordListener() {
             if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
                 console.log('Wake word not supported - Speech Recognition API not available');
-                return;
+                showError('Voice activation not supported in this browser');
+                return false;
             }
 
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1105,8 +1167,8 @@
                     for (const wakeWord of WAKE_WORDS) {
                         if (transcript.includes(wakeWord)) {
                             console.log('Wake word detected!', wakeWord);
-                            // Stop wake word listener and start conversation
-                            stopWakeWordListener();
+                            // Stop wake word listener temporarily and start conversation
+                            if (wakeWordRecognition) wakeWordRecognition.stop();
                             toggleConversation();
                             return;
                         }
@@ -1115,52 +1177,64 @@
             };
 
             wakeWordRecognition.onend = () => {
-                // Restart if we're supposed to be listening and not in a conversation
-                if (isWakeWordListening && !conversation) {
-                    wakeWordRecognition.start();
+                // Restart if wake word mode is enabled and not in a conversation
+                if (wakeWordEnabled && !conversation) {
+                    setTimeout(() => {
+                        if (wakeWordEnabled && !conversation && wakeWordRecognition) {
+                            try {
+                                wakeWordRecognition.start();
+                            } catch (e) {
+                                console.log('Could not restart wake word:', e);
+                            }
+                        }
+                    }, 100);
                 }
             };
 
             wakeWordRecognition.onerror = (event) => {
                 console.log('Wake word error:', event.error);
                 if (event.error === 'not-allowed') {
-                    console.log('Microphone permission denied for wake word');
-                    isWakeWordListening = false;
+                    showError('Microphone permission denied');
+                    wakeWordEnabled = false;
+                    wakeButton.classList.remove('active');
+                    wakeIcon.textContent = '🎤';
                 }
             };
 
             try {
                 wakeWordRecognition.start();
                 isWakeWordListening = true;
-                console.log('Wake word listener started - say "AI Guy" or "Hey Pi Guy"');
+                return true;
             } catch (e) {
                 console.log('Could not start wake word listener:', e);
+                showError('Could not start voice activation');
+                return false;
             }
         }
 
         function stopWakeWordListener() {
+            isWakeWordListening = false;
             if (wakeWordRecognition) {
-                isWakeWordListening = false;
-                wakeWordRecognition.stop();
+                try {
+                    wakeWordRecognition.stop();
+                } catch (e) {}
+                wakeWordRecognition = null;
             }
         }
 
-        // Restart wake word listener when conversation ends
+        // Restart wake word listener when conversation ends (if enabled)
         const originalToggleConversation = window.toggleConversation;
         window.toggleConversation = async function() {
             const wasInConversation = !!conversation;
             await originalToggleConversation();
 
-            // If conversation just ended, restart wake word listener
-            if (wasInConversation && !conversation) {
+            // If conversation just ended and wake word was enabled, restart it
+            if (wasInConversation && !conversation && wakeWordEnabled) {
                 setTimeout(() => {
                     startWakeWordListener();
                 }, 1000);
             }
         };
-
-        // Start wake word listener on page load
-        startWakeWordListener();
 
         // ===== KEYBOARD SHORTCUTS =====
         document.addEventListener('keydown', (e) => {
