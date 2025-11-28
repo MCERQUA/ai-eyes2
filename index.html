@@ -626,8 +626,9 @@
             : 'https://ai-guy.mikecerqua.ca';  // VPS server URL with HTTPS
 
         // ===== STATE =====
+        const DEFAULT_AGENT_ID = 'agent_0801kb2240vcea2ayx0a2qxmheha';
         let conversation = null;
-        let agentId = localStorage.getItem('piGuyAgentId') || '';
+        let agentId = localStorage.getItem('piGuyAgentId') || DEFAULT_AGENT_ID;
         let isSpeaking = false;
         let isListening = false;
         let cameraStream = null;
