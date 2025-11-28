@@ -27,15 +27,23 @@ An interactive voice agent with an animated sci-fi face, powered by ElevenLabs C
 
 ### ElevenLabs Agent
 - **Agent ID**: `agent_0801kb2240vcea2ayx0a2qxmheha`
-- **Model**: GPT-4o-mini
+- **Model**: glm-45-air-fp8 (configurable in ElevenLabs dashboard)
 - **Max Tokens**: 1000
 - **Voice**: Custom (eZm9vdjYgL9PZKtf7XMM)
 
-### Vision Tool
+### ElevenLabs Tools
+
+#### Vision Tool (look_and_see)
 - **Tool ID**: `tool_4801kb43nm64eeyawtqsbpy8rtb4`
 - **Webhook URL**: `https://ai-guy.mikecerqua.ca/api/vision`
 - **Method**: GET
 - **Trigger phrases**: "look", "see", "what is this", "what do you see", "can you see"
+
+#### Face Recognition Tool (identify_person)
+- **Tool ID**: `tool_4801kb4bcw3df5x9v7gvpes40b5m`
+- **Webhook URL**: `https://ai-guy.mikecerqua.ca/api/identity`
+- **Method**: GET
+- **Trigger phrases**: "do you recognize me", "who am I", "do you know who I am"
 
 ### Server
 - **Domain**: ai-guy.mikecerqua.ca
@@ -115,6 +123,7 @@ curl https://ai-guy.mikecerqua.ca/api/health
 ELEVENLABS_API_KEY=xxx
 ELEVENLABS_AGENT_ID=agent_0801kb2240vcea2ayx0a2qxmheha
 ELEVENLABS_VISION_TOOL_ID=tool_4801kb43nm64eeyawtqsbpy8rtb4
+ELEVENLABS_IDENTIFY_TOOL_ID=tool_4801kb4bcw3df5x9v7gvpes40b5m
 GEMINI_API_KEY=xxx
 VPS_IP=178.156.162.212
 PORT=5000
