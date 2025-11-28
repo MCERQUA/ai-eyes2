@@ -1,125 +1,112 @@
-# Pi-Guy Dashboard
+# Pi-Guy Voice Agent
 
-A sci-fi themed system monitoring dashboard for Raspberry Pi 5, with an animated face mode.
+An interactive voice agent with an animated sci-fi face, powered by ElevenLabs Conversational AI.
 
 ## Overview
-- **Type**: Web app (Flask + HTML/CSS/JS)
-- **Dashboard URL**: http://localhost:5000
-- **Face URL**: http://localhost:5000/face
-- **Style**: Futuristic sci-fi with glowing effects
+- **Type**: Static web app (pure HTML/CSS/JS)
+- **Hosting**: GitHub Pages, Netlify, or Vercel
+- **Voice**: ElevenLabs Conversational AI
 
 ## Files
 ```
-/home/mike/pi-01/Dashboard/
-├── app.py                      # Flask server with WebSocket stats + face API
-├── venv/                       # Python virtual environment
-├── templates/
-│   ├── index.html              # Dashboard UI (gauges, styling, JS)
-│   └── face.html               # Animated face with eyes + waveform mouth
-├── start.sh                    # Launch script (starts server + browser)
-├── requirements.txt            # Python dependencies
-├── pi-guy-dashboard.service    # Systemd service file (optional)
-└── CLAUDE.md                   # This file
+├── index.html          # Main app (face + voice agent)
+├── CLAUDE.md           # This file
+└── .gitignore
 ```
 
 ## Features
 
-### Dashboard Mode (/)
-- **4 gauges**: CPU, Temperature, Memory, Disk
-- **Real-time updates** via WebSocket (1 second refresh)
-- **Gradient colors**: Green → Yellow → Red based on value
-- **Scale numbers** around gauge arcs
-- **Glow effects** and animated scan lines
-- **Warning/danger states** with pulsing animations
-
-### Face Mode (/face)
-- **Animated eyes** that follow cursor (ready for camera tracking)
-- **Expressions**: neutral, happy, sad, angry, thinking, surprised
+### Animated Face
+- **Eyes** that follow cursor movement
 - **Realistic blinking** with random intervals
+- **Expressions**: neutral, happy, sad, angry, thinking, surprised, listening
+- **Waveform mouth** - animates when agent is speaking
 - **Idle behavior** - eyes look around when inactive
-- **Waveform mouth** - oscilloscope animation for TTS sync
-- **Mini stats bar** at bottom showing CPU/Temp/Mem/Disk
-- **Trigger buttons** on sides for testing expressions
 
-## Running the Dashboard
+### Voice Agent
+- **Push-to-talk style**: Click phone button to start/end conversation
+- **Real-time transcription**: Shows what you and the agent say
+- **Status indicators**: Connecting, connected, listening, speaking
+- **Browser mic access**: Uses Web Audio API
 
-### Desktop shortcut (recommended)
-Double-click `Pi-Guy-Dashboard` on the desktop
+## Setup
 
-### Manual launch
+### 1. Create an ElevenLabs Agent
+1. Go to [elevenlabs.io/conversational-ai](https://elevenlabs.io/conversational-ai)
+2. Create a new agent
+3. Configure the agent's voice, personality, and knowledge base
+4. Copy the **Agent ID**
+
+### 2. Deploy the Site
+**GitHub Pages:**
 ```bash
-cd /home/mike/pi-01/Dashboard
-./start.sh
+# Push to GitHub, then enable Pages in repo settings
 ```
 
-### Server only (no browser)
+**Netlify/Vercel:**
 ```bash
-cd /home/mike/pi-01/Dashboard
-./venv/bin/python app.py
-# Then open http://localhost:5000 in any browser
+# Connect repo and deploy - no build step needed
 ```
 
-## Dependencies
-- Flask
-- Flask-SocketIO
-- psutil
-- simple-websocket
+### 3. Use the App
+1. Open the deployed site
+2. Enter your Agent ID when prompted (saved to localStorage)
+3. Click the phone button to start a conversation
+4. Speak to the agent - the face will react!
 
-Installed in `./venv/` virtual environment.
+## Face API (JavaScript)
+
+Control the face programmatically from the browser console:
+
+```javascript
+// Set mood
+piGuy.setMood('happy')    // happy, sad, angry, thinking, surprised, listening, neutral
+
+// Trigger blink
+piGuy.blink()
+
+// Change agent ID
+piGuy.setAgentId('your-new-agent-id')
+
+// Get current conversation
+piGuy.getConversation()
+```
+
+## Keyboard Shortcuts
+- **Space** or **Enter**: Start/stop conversation
+- **Escape**: End conversation
+
+## How It Works
+
+1. **ElevenLabs SDK**: Loaded from CDN (`@11labs/client`)
+2. **WebSocket Connection**: Real-time audio streaming
+3. **Browser Microphone**: Captures user speech
+4. **Mode Events**: Agent switches between listening/speaking modes
+5. **Transcription**: Messages displayed as they're processed
 
 ## Customization
 
 ### Colors
-Edit `:root` CSS variables in `templates/index.html`:
-- `--blue`, `--red` for accent colors
-- `--dark-bg`, `--panel-bg` for backgrounds
-
-### Gauge gradient
-Edit `getGradientColor()` function in the `<script>` section to change green→yellow→red progression.
-
-### Add new gauges
-1. Add stat collection in `app.py` `get_system_stats()`
-2. Add SVG gauge in `templates/index.html`
-3. Add update logic in the `socket.on('stats_update')` handler
-
-## Face API
-
-Control the face programmatically from other scripts (e.g., LLM/TTS integration):
-
-```bash
-# Set mood
-curl http://localhost:5000/api/mood/happy
-curl http://localhost:5000/api/mood/sad
-curl http://localhost:5000/api/mood/angry
-curl http://localhost:5000/api/mood/thinking
-curl http://localhost:5000/api/mood/surprised
-curl http://localhost:5000/api/mood/neutral
-
-# Trigger blink
-curl http://localhost:5000/api/blink
-
-# Control talking animation
-curl http://localhost:5000/api/talk/start
-curl http://localhost:5000/api/talk/stop
-
-# Make eyes look at position (x, y from 0.0 to 1.0)
-curl "http://localhost:5000/api/look?x=0.8&y=0.2"
+Edit `:root` CSS variables in `index.html`:
+```css
+--blue: #0088ff;
+--cyan: #00ffff;
+--green: #00ff66;
+--dark-bg: #050508;
 ```
 
-### WebSocket Events (for real-time control)
-From your TTS/LLM process, emit these events:
-- `set_mood` - `{mood: 'happy'}`
-- `blink` - triggers a blink
-- `start_talking` / `stop_talking` - controls waveform mouth
-- `look_at` - `{x: 0.5, y: 0.5}` for eye position
+### Face Size
+Adjust `.eye` dimensions and `.eyes-container` gap.
 
-## Face Keyboard Controls
-- `1-6` - Switch moods (neutral, happy, sad, angry, thinking, surprised)
-- `B` - Manual blink
-- `Space` (hold) - Activate talking animation
+### Agent Behavior
+Configure in ElevenLabs dashboard:
+- Voice selection
+- System prompt / personality
+- Knowledge base
+- Response settings
 
 ## Notes
-- Browser: Uses `chromium` command (Pi OS default)
-- Kiosk mode: Press Alt+F4 to exit fullscreen
-- Port: 5000 (change in app.py if needed)
-- Face eyes will follow cursor, ready for camera tracking integration
+- **HTTPS Required**: Microphone access requires secure context
+- **Browser Support**: Chrome, Firefox, Edge, Safari (modern versions)
+- **No Backend**: Everything runs client-side
+- **Agent ID Storage**: Saved in browser localStorage

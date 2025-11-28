@@ -1,5 +1,18 @@
-venv/
-__pycache__/
-*.pyc
+# Dependencies
+node_modules/
+
+# Environment
 .env
-*.log
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build (if using bundler later)
+dist/
+build/
