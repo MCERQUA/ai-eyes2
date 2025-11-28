@@ -1,112 +1,146 @@
 # Pi-Guy Voice Agent
 
-An interactive voice agent with an animated sci-fi face, powered by ElevenLabs Conversational AI.
+An interactive voice agent with an animated sci-fi face, powered by ElevenLabs Conversational AI with Gemini Vision capabilities.
 
 ## Overview
-- **Type**: Static web app (pure HTML/CSS/JS)
-- **Hosting**: GitHub Pages, Netlify, or Vercel
+- **Type**: Web app with Python backend
+- **Frontend**: GitHub Pages (https://mcerqua.github.io/AI-eyes/)
+- **Backend**: Flask server on VPS (https://ai-guy.mikecerqua.ca)
 - **Voice**: ElevenLabs Conversational AI
+- **Vision**: Google Gemini 2.0 Flash
 
 ## Files
 ```
-├── index.html          # Main app (face + voice agent)
+├── index.html          # Main app (face + voice agent + camera)
+├── server.py           # Flask backend for vision API
+├── requirements.txt    # Python dependencies
+├── setup-nginx.sh      # Nginx + SSL setup script
+├── .env                # API keys (not in git)
 ├── CLAUDE.md           # This file
 └── .gitignore
 ```
+
+## Current Configuration
+
+### ElevenLabs Agent
+- **Agent ID**: `agent_0801kb2240vcea2ayx0a2qxmheha`
+- **Model**: GPT-4o-mini
+- **Max Tokens**: 1000
+- **Voice**: Custom (eZm9vdjYgL9PZKtf7XMM)
+
+### Vision Tool
+- **Tool ID**: `tool_4801kb43nm64eeyawtqsbpy8rtb4`
+- **Webhook URL**: `https://ai-guy.mikecerqua.ca/api/vision`
+- **Method**: GET
+- **Trigger phrases**: "look", "see", "what is this", "what do you see", "can you see"
+
+### Server
+- **Domain**: ai-guy.mikecerqua.ca
+- **VPS IP**: 178.156.162.212
+- **Port**: 5000 (proxied through nginx with SSL)
+- **SSL**: Let's Encrypt (auto-renews)
 
 ## Features
 
 ### Animated Face
 - **Eyes** that follow cursor movement
+- **Random eye movement** when idle (looks around on its own)
 - **Realistic blinking** with random intervals
 - **Expressions**: neutral, happy, sad, angry, thinking, surprised, listening
 - **Waveform mouth** - animates when agent is speaking
-- **Idle behavior** - eyes look around when inactive
 
 ### Voice Agent
-- **Push-to-talk style**: Click phone button to start/end conversation
+- **Click phone button** to start/end conversation
+- **Random first messages** - Pi-Guy greets differently each time
 - **Real-time transcription**: Shows what you and the agent say
 - **Status indicators**: Connecting, connected, listening, speaking
-- **Browser mic access**: Uses Web Audio API
 
-## Setup
+### Vision (Camera)
+- **Camera button** with live preview inside the button
+- **Captures frames** every 2 seconds and sends to server
+- **Gemini Vision API** analyzes images with Pi-Guy's personality
+- **Voice describes** what he "sees" in his sarcastic way
 
-### 1. Create an ElevenLabs Agent
-1. Go to [elevenlabs.io/conversational-ai](https://elevenlabs.io/conversational-ai)
-2. Create a new agent
-3. Configure the agent's voice, personality, and knowledge base
-4. Copy the **Agent ID**
+## API Endpoints
 
-### 2. Deploy the Site
-**GitHub Pages:**
+### Server (https://ai-guy.mikecerqua.ca)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Serves index.html |
+| `/api/health` | GET | Health check |
+| `/api/frame` | POST | Receive camera frame from client |
+| `/api/vision` | GET/POST | Analyze latest frame with Gemini |
+
+## Starting the Server
+
 ```bash
-# Push to GitHub, then enable Pages in repo settings
+cd /home/mike/Mike-AI/ai-eyes
+nohup python3 server.py > server.log 2>&1 &
 ```
 
-**Netlify/Vercel:**
+Check if running:
 ```bash
-# Connect repo and deploy - no build step needed
+curl https://ai-guy.mikecerqua.ca/api/health
 ```
 
-### 3. Use the App
-1. Open the deployed site
-2. Enter your Agent ID when prompted (saved to localStorage)
-3. Click the phone button to start a conversation
-4. Speak to the agent - the face will react!
+## Environment Variables (.env)
 
-## Face API (JavaScript)
+```
+ELEVENLABS_API_KEY=xxx
+ELEVENLABS_AGENT_ID=agent_0801kb2240vcea2ayx0a2qxmheha
+ELEVENLABS_VISION_TOOL_ID=tool_4801kb43nm64eeyawtqsbpy8rtb4
+GEMINI_API_KEY=xxx
+VPS_IP=178.156.162.212
+PORT=5000
+DOMAIN=ai-guy.mikecerqua.ca
+```
 
-Control the face programmatically from the browser console:
+## ElevenLabs API Quick Reference
+
+### Update Agent
+```bash
+curl -X PATCH "https://api.elevenlabs.io/v1/convai/agents/{agent_id}" \
+  -H "xi-api-key: $ELEVENLABS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"conversation_config": {...}}'
+```
+
+### Update Tool
+```bash
+curl -X PATCH "https://api.elevenlabs.io/v1/convai/tools/{tool_id}" \
+  -H "xi-api-key: $ELEVENLABS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"tool_config": {...}}'
+```
+
+### List Tools
+```bash
+curl "https://api.elevenlabs.io/v1/convai/tools" \
+  -H "xi-api-key: $ELEVENLABS_API_KEY"
+```
+
+## Face API (JavaScript Console)
 
 ```javascript
-// Set mood
 piGuy.setMood('happy')    // happy, sad, angry, thinking, surprised, listening, neutral
-
-// Trigger blink
 piGuy.blink()
-
-// Change agent ID
-piGuy.setAgentId('your-new-agent-id')
-
-// Get current conversation
+piGuy.setAgentId('new-id')
 piGuy.getConversation()
+toggleCamera()            // Toggle camera on/off
+captureAndDescribe()      // Test vision locally
 ```
 
-## Keyboard Shortcuts
-- **Space** or **Enter**: Start/stop conversation
-- **Escape**: End conversation
-
-## How It Works
-
-1. **ElevenLabs SDK**: Loaded from CDN (`@11labs/client`)
-2. **WebSocket Connection**: Real-time audio streaming
-3. **Browser Microphone**: Captures user speech
-4. **Mode Events**: Agent switches between listening/speaking modes
-5. **Transcription**: Messages displayed as they're processed
-
-## Customization
-
-### Colors
-Edit `:root` CSS variables in `index.html`:
-```css
---blue: #0088ff;
---cyan: #00ffff;
---green: #00ff66;
---dark-bg: #050508;
-```
-
-### Face Size
-Adjust `.eye` dimensions and `.eyes-container` gap.
-
-### Agent Behavior
-Configure in ElevenLabs dashboard:
-- Voice selection
-- System prompt / personality
-- Knowledge base
-- Response settings
+## Future Ideas / TODOs
+- Add more tools (weather, time, web search)
+- Home automation controls
+- Memory/context persistence between sessions
+- Different "moods" based on conversation
+- Screen sharing capability
+- Multiple camera support
 
 ## Notes
-- **HTTPS Required**: Microphone access requires secure context
+- **HTTPS Required**: Both mic and camera require secure context
 - **Browser Support**: Chrome, Firefox, Edge, Safari (modern versions)
-- **No Backend**: Everything runs client-side
-- **Agent ID Storage**: Saved in browser localStorage
+- **Server must be running** for vision to work
+- **Camera permission** needed for vision feature
