@@ -607,6 +607,163 @@
             color: #333;
             text-align: center;
         }
+
+        /* Community Panel */
+        .community-panel {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 900;
+        }
+
+        .community-toggle {
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--panel-bg);
+            border: 1px solid var(--blue);
+            border-right: none;
+            border-radius: 10px 0 0 10px;
+            padding: 15px 8px;
+            cursor: pointer;
+            color: var(--blue);
+            font-size: 1.2rem;
+            transition: all 0.3s;
+        }
+
+        .community-toggle:hover {
+            background: var(--blue);
+            color: white;
+        }
+
+        .community-content {
+            position: absolute;
+            right: -320px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 300px;
+            max-height: 80vh;
+            background: var(--panel-bg);
+            border: 1px solid var(--blue);
+            border-radius: 10px 0 0 10px;
+            padding: 15px;
+            transition: right 0.3s ease;
+            overflow-y: auto;
+        }
+
+        .community-content.open {
+            right: 0;
+        }
+
+        .community-content h3 {
+            color: var(--cyan);
+            margin-bottom: 15px;
+            font-size: 1rem;
+            border-bottom: 1px solid var(--blue-dim);
+            padding-bottom: 10px;
+        }
+
+        .community-list {
+            list-style: none;
+            margin-bottom: 15px;
+        }
+
+        .community-list li {
+            padding: 8px 10px;
+            margin: 5px 0;
+            background: rgba(0, 136, 255, 0.1);
+            border-radius: 5px;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .community-list li .photo-count {
+            font-size: 0.7rem;
+            color: var(--blue-dim);
+        }
+
+        .face-register {
+            border-top: 1px solid var(--blue-dim);
+            padding-top: 15px;
+            margin-top: 10px;
+        }
+
+        .face-register h4 {
+            color: var(--green);
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .face-register input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            background: var(--dark-bg);
+            border: 1px solid var(--blue-dim);
+            border-radius: 5px;
+            color: var(--blue);
+            font-family: 'Courier New', monospace;
+        }
+
+        .face-register-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .face-register button {
+            flex: 1;
+            padding: 8px;
+            background: var(--blue);
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 0.8rem;
+            transition: all 0.2s;
+        }
+
+        .face-register button:hover {
+            background: var(--blue-bright);
+        }
+
+        .face-register button:disabled {
+            background: var(--blue-dim);
+            cursor: not-allowed;
+        }
+
+        .face-register .upload-btn {
+            background: var(--green);
+        }
+
+        .face-register .upload-btn:hover {
+            background: #00cc55;
+        }
+
+        .photo-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin: 10px 0;
+        }
+
+        .photo-preview img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 5px;
+            border: 1px solid var(--blue-dim);
+        }
+
+        .register-status {
+            font-size: 0.75rem;
+            color: var(--cyan);
+            margin-top: 10px;
+        }
     </style>
     <!-- Clerk Authentication -->
     <script
@@ -628,6 +785,28 @@
     <!-- Login Modal -->
     <div id="clerk-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center;">
         <div id="sign-in-container" style="background: var(--panel-bg); padding: 20px; border-radius: 10px; border: 1px solid var(--blue);"></div>
+    </div>
+
+    <!-- Community Panel -->
+    <div class="community-panel">
+        <button class="community-toggle" id="community-toggle" title="Community Faces">👥</button>
+        <div class="community-content" id="community-content">
+            <h3>👥 Community Faces</h3>
+            <ul class="community-list" id="community-list">
+                <!-- Populated by JS -->
+            </ul>
+            <div class="face-register">
+                <h4>📸 Register Your Face</h4>
+                <input type="text" id="register-name" placeholder="Enter your name..." maxlength="30" />
+                <div class="photo-preview" id="photo-preview"></div>
+                <div class="face-register-buttons">
+                    <button id="capture-btn" title="Take photo from camera">📷 Capture</button>
+                    <button id="upload-btn" class="upload-btn" title="Upload photo file">📁 Upload</button>
+                </div>
+                <input type="file" id="file-upload" accept="image/*" multiple style="display: none;" />
+                <div class="register-status" id="register-status"></div>
+            </div>
+        </div>
     </div>
 
     <div class="mood-label">Status: <span id="current-status">disconnected</span></div>
@@ -1556,6 +1735,192 @@
         // Helper to check if user is logged in
         window.isLoggedIn = () => !!clerkUser;
         window.getUser = () => clerkUser;
+
+        // ===== COMMUNITY PANEL =====
+        const communityToggle = document.getElementById('community-toggle');
+        const communityContent = document.getElementById('community-content');
+        const communityList = document.getElementById('community-list');
+        const registerName = document.getElementById('register-name');
+        const captureBtn = document.getElementById('capture-btn');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileUpload = document.getElementById('file-upload');
+        const photoPreview = document.getElementById('photo-preview');
+        const registerStatus = document.getElementById('register-status');
+
+        const MAX_PHOTOS_PER_USER = 10;
+        let pendingPhotos = []; // Photos waiting to be saved
+
+        // Toggle panel
+        communityToggle.addEventListener('click', () => {
+            communityContent.classList.toggle('open');
+            if (communityContent.classList.contains('open')) {
+                loadCommunityList();
+            }
+        });
+
+        // Load list of registered faces
+        async function loadCommunityList() {
+            try {
+                const response = await fetch(`${VISION_SERVER_URL}/api/faces`);
+                const faces = await response.json();
+
+                communityList.innerHTML = '';
+                const names = Object.keys(faces).sort();
+
+                if (names.length === 0) {
+                    communityList.innerHTML = '<li style="color: var(--blue-dim);">No faces registered yet</li>';
+                    return;
+                }
+
+                names.forEach(name => {
+                    const photoCount = faces[name].length;
+                    const li = document.createElement('li');
+                    li.innerHTML = `
+                        <span>${name}</span>
+                        <span class="photo-count">${photoCount} photo${photoCount !== 1 ? 's' : ''}</span>
+                    `;
+                    communityList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Failed to load faces:', error);
+                communityList.innerHTML = '<li style="color: var(--red);">Failed to load</li>';
+            }
+        }
+
+        // Capture from webcam
+        captureBtn.addEventListener('click', async () => {
+            const name = registerName.value.trim();
+            if (!name) {
+                registerStatus.textContent = '⚠️ Please enter your name first';
+                registerStatus.style.color = 'var(--orange)';
+                return;
+            }
+
+            if (!cameraStream) {
+                registerStatus.textContent = '⚠️ Turn on the camera first (click camera button)';
+                registerStatus.style.color = 'var(--orange)';
+                return;
+            }
+
+            // Check current photo count for this user
+            try {
+                const facesResp = await fetch(`${VISION_SERVER_URL}/api/faces`);
+                const faces = await facesResp.json();
+                const existingCount = faces[name] ? faces[name].length : 0;
+
+                if (existingCount + pendingPhotos.length >= MAX_PHOTOS_PER_USER) {
+                    registerStatus.textContent = `⚠️ Max ${MAX_PHOTOS_PER_USER} photos per person`;
+                    registerStatus.style.color = 'var(--orange)';
+                    return;
+                }
+            } catch (e) {
+                console.error('Error checking faces:', e);
+            }
+
+            const frame = captureFrame();
+            if (frame) {
+                pendingPhotos.push(frame);
+                updatePhotoPreview();
+                await savePhoto(name, frame);
+            }
+        });
+
+        // Upload file
+        uploadBtn.addEventListener('click', () => {
+            const name = registerName.value.trim();
+            if (!name) {
+                registerStatus.textContent = '⚠️ Please enter your name first';
+                registerStatus.style.color = 'var(--orange)';
+                return;
+            }
+            fileUpload.click();
+        });
+
+        fileUpload.addEventListener('change', async (e) => {
+            const name = registerName.value.trim();
+            const files = Array.from(e.target.files);
+
+            // Check limits
+            try {
+                const facesResp = await fetch(`${VISION_SERVER_URL}/api/faces`);
+                const faces = await facesResp.json();
+                const existingCount = faces[name] ? faces[name].length : 0;
+                const availableSlots = MAX_PHOTOS_PER_USER - existingCount - pendingPhotos.length;
+
+                if (availableSlots <= 0) {
+                    registerStatus.textContent = `⚠️ Max ${MAX_PHOTOS_PER_USER} photos per person`;
+                    registerStatus.style.color = 'var(--orange)';
+                    return;
+                }
+
+                const filesToProcess = files.slice(0, availableSlots);
+
+                for (const file of filesToProcess) {
+                    const base64 = await fileToBase64(file);
+                    pendingPhotos.push(base64);
+                    updatePhotoPreview();
+                    await savePhoto(name, base64);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                registerStatus.textContent = '❌ Upload failed';
+                registerStatus.style.color = 'var(--red)';
+            }
+
+            fileUpload.value = ''; // Reset
+        });
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function updatePhotoPreview() {
+            photoPreview.innerHTML = pendingPhotos.map((photo, i) =>
+                `<img src="${photo}" alt="Photo ${i + 1}" />`
+            ).join('');
+        }
+
+        async function savePhoto(name, imageData) {
+            try {
+                registerStatus.textContent = '⏳ Saving...';
+                registerStatus.style.color = 'var(--cyan)';
+
+                const response = await fetch(`${VISION_SERVER_URL}/api/faces/${encodeURIComponent(name)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    registerStatus.textContent = `✅ Photo saved for ${name}!`;
+                    registerStatus.style.color = 'var(--green)';
+                    loadCommunityList(); // Refresh list
+                } else {
+                    throw new Error(result.error || 'Save failed');
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                registerStatus.textContent = '❌ Failed to save photo';
+                registerStatus.style.color = 'var(--red)';
+            }
+        }
+
+        // Clear preview when name changes
+        registerName.addEventListener('input', () => {
+            pendingPhotos = [];
+            photoPreview.innerHTML = '';
+            registerStatus.textContent = '';
+        });
+
+        // Load community list on page load
+        loadCommunityList();
     </script>
 </body>
 </html>
