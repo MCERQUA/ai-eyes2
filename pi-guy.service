@@ -1,0 +1,16 @@
+[Unit]
+Description=Pi-Guy Vision Server
+After=network.target
+
+[Service]
+Type=simple
+User=mike
+WorkingDirectory=/home/mike/Mike-AI/ai-eyes
+ExecStart=/usr/bin/python3 /home/mike/Mike-AI/ai-eyes/server.py
+Restart=always
+RestartSec=10
+Environment=PATH=/usr/bin:/usr/local/bin
+EnvironmentFile=/home/mike/Mike-AI/ai-eyes/.env
+
+[Install]
+WantedBy=multi-user.target

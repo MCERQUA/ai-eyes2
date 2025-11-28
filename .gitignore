@@ -22,3 +22,6 @@ server.log
 
 # DeepFace cache (regenerated automatically)
 *.pkl
+
+# User usage database
+usage.db

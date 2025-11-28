@@ -3,6 +3,7 @@
 Pi-Guy Vision Server
 Handles vision requests from ElevenLabs agent using Gemini Vision API
 Also handles face recognition using DeepFace
+Also handles user usage tracking
 """
 
 import os
@@ -10,6 +11,8 @@ import base64
 import json
 import shutil
 import tempfile
+import sqlite3
+from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
@@ -21,6 +24,74 @@ load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# ===== USER USAGE TRACKING =====
+MONTHLY_LIMIT = 20  # Max agent responses per user per month
+DB_PATH = Path(__file__).parent / "usage.db"
+
+def init_db():
+    """Initialize the usage database"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS usage (
+            user_id TEXT PRIMARY KEY,
+            message_count INTEGER DEFAULT 0,
+            month TEXT,
+            updated_at TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def get_current_month():
+    return datetime.now().strftime('%Y-%m')
+
+def get_user_usage(user_id):
+    """Get user's message count for current month"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    current_month = get_current_month()
+
+    c.execute('SELECT message_count, month FROM usage WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if row:
+        count, month = row
+        # Reset if new month
+        if month != current_month:
+            return 0
+        return count
+    return 0
+
+def increment_usage(user_id):
+    """Increment user's message count"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    current_month = get_current_month()
+    now = datetime.now().isoformat()
+
+    c.execute('SELECT month FROM usage WHERE user_id = ?', (user_id,))
+    row = c.fetchone()
+
+    if row:
+        if row[0] != current_month:
+            # New month, reset count
+            c.execute('UPDATE usage SET message_count = 1, month = ?, updated_at = ? WHERE user_id = ?',
+                     (current_month, now, user_id))
+        else:
+            c.execute('UPDATE usage SET message_count = message_count + 1, updated_at = ? WHERE user_id = ?',
+                     (now, user_id))
+    else:
+        c.execute('INSERT INTO usage (user_id, message_count, month, updated_at) VALUES (?, 1, ?, ?)',
+                 (user_id, current_month, now))
+
+    conn.commit()
+    conn.close()
+
+# Initialize database on startup
+init_db()
 
 # Face recognition setup
 KNOWN_FACES_DIR = Path(__file__).parent / "known_faces"
@@ -319,6 +390,42 @@ def remove_face(name):
 
         return jsonify({"status": "success", "message": f"Removed {name} from database"})
     return jsonify({"error": f"{name} not found"}), 404
+
+# ===== USER USAGE ENDPOINTS =====
+
+@app.route('/api/usage/<user_id>', methods=['GET'])
+def check_usage(user_id):
+    """Check user's current usage and remaining allowance"""
+    count = get_user_usage(user_id)
+    return jsonify({
+        "user_id": user_id,
+        "used": count,
+        "limit": MONTHLY_LIMIT,
+        "remaining": max(0, MONTHLY_LIMIT - count),
+        "allowed": count < MONTHLY_LIMIT
+    })
+
+@app.route('/api/usage/<user_id>/increment', methods=['POST'])
+def track_usage(user_id):
+    """Increment user's usage count (called when agent responds)"""
+    count = get_user_usage(user_id)
+
+    if count >= MONTHLY_LIMIT:
+        return jsonify({
+            "error": "Monthly limit reached",
+            "used": count,
+            "limit": MONTHLY_LIMIT
+        }), 429
+
+    increment_usage(user_id)
+    new_count = count + 1
+
+    return jsonify({
+        "user_id": user_id,
+        "used": new_count,
+        "limit": MONTHLY_LIMIT,
+        "remaining": max(0, MONTHLY_LIMIT - new_count)
+    })
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
