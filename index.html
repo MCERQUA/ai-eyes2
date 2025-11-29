@@ -1676,6 +1676,20 @@
                                 showTranscription(message.message, true);
                             } else if (message.source === 'ai' && message.message) {
                                 showTranscription(message.message, false);
+
+                                // Check if Pi-Guy is talking about playing music
+                                // This syncs the frontend with what the tool did
+                                const msg = message.message.toLowerCase();
+                                if (msg.includes('spinning up') || msg.includes('playing') || msg.includes('next up:')) {
+                                    // Pi-Guy said he's playing something - sync with server state
+                                    console.log('Music mentioned, syncing with server...');
+                                    syncMusicState();
+                                } else if (msg.includes('music stopped') || msg.includes('stopping')) {
+                                    stopMusicPlayback();
+                                } else if (msg.includes('pausing') || msg.includes('paused')) {
+                                    pauseMusicPlayback();
+                                }
+
                                 // Track agent response for usage limits
                                 if (clerkUser) {
                                     try {
@@ -2395,6 +2409,51 @@
             }
         };
 
+        // Sync music state with server (called when Pi-Guy says he's playing something)
+        async function syncMusicState() {
+            try {
+                const response = await fetch(`${VISION_SERVER_URL}/api/music?action=status`);
+                const data = await response.json();
+                console.log('Music state from server:', data);
+
+                if (data.playing && data.track) {
+                    // Server says music should be playing - start it!
+                    currentTrack = data.track;
+                    trackName.textContent = data.track.name;
+                    musicPlayer.src = `${VISION_SERVER_URL}/music/${data.track.filename}`;
+                    musicPlayer.volume = isSpeaking ? (data.volume / 100) * 0.3 : data.volume / 100;
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    musicButton.classList.add('playing');
+                    playPauseBtn.textContent = '⏸';
+                    nowPlaying.classList.add('visible');
+                    volumeSlider.value = data.volume;
+                    console.log('Music started:', data.track.name);
+                }
+            } catch (error) {
+                console.error('Failed to sync music state:', error);
+            }
+        }
+
+        // Stop music playback
+        function stopMusicPlayback() {
+            musicPlayer.pause();
+            musicPlayer.currentTime = 0;
+            musicPlaying = false;
+            currentTrack = null;
+            musicButton.classList.remove('playing');
+            nowPlaying.classList.remove('visible');
+            console.log('Music stopped');
+        }
+
+        // Pause music playback
+        function pauseMusicPlayback() {
+            musicPlayer.pause();
+            musicPlaying = false;
+            playPauseBtn.textContent = '▶';
+            console.log('Music paused');
+        }
+
         // Expose for console testing
         window.playMusic = (track) => playMusicFromServer('play', track);
         window.stopMusic = () => playMusicFromServer('stop');
@@ -2403,6 +2462,7 @@
             console.log('Available tracks:', data.tracks);
             return data;
         };
+        window.syncMusicState = syncMusicState;
 
         // ===== COMMUNITY PANEL =====
         const communityToggle = document.getElementById('community-toggle');
