@@ -45,6 +45,36 @@ def init_db():
             updated_at TEXT
         )
     ''')
+    # Jobs table for scheduled tasks
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            job_type TEXT NOT NULL,
+            schedule_type TEXT NOT NULL,
+            cron_expression TEXT,
+            next_run TEXT,
+            last_run TEXT,
+            status TEXT DEFAULT 'pending',
+            action TEXT NOT NULL,
+            action_params TEXT,
+            result TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    ''')
+    # Job history table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS job_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id INTEGER,
+            run_at TEXT,
+            status TEXT,
+            result TEXT,
+            duration_ms INTEGER,
+            FOREIGN KEY (job_id) REFERENCES jobs(id)
+        )
+    ''')
     conn.commit()
     conn.close()
 
@@ -1358,6 +1388,560 @@ def delete_note(filename):
         "filename": safe_name,
         "deleted": True,
         "response": f"Deleted '{safe_name}'."
+    })
+
+
+# ===== PI-GUY JOB SCHEDULING SYSTEM =====
+
+# Allowed job actions (whitelist) - maps to functions that execute the job
+# Each action returns (success: bool, result: str)
+JOB_ACTIONS = {
+    'command': 'Execute a whitelisted server command',
+    'note_write': 'Write or append to a note',
+    'note_read': 'Read a note',
+    'search': 'Search the web and save results',
+    'server_status': 'Check server status',
+    'memory_add': 'Add something to memory',
+    'remind': 'Send a reminder (logs to job result)',
+}
+
+def parse_schedule(schedule_str):
+    """
+    Parse a schedule string into schedule_type and next_run time.
+
+    Formats supported:
+    - "in 5 minutes", "in 2 hours", "in 1 day"
+    - "at 9:00", "at 14:30"
+    - "daily at 9:00", "hourly", "every 5 minutes"
+    - Cron: "0 9 * * *" (9am daily)
+
+    Returns: (schedule_type, cron_expression, next_run_iso)
+    """
+    from datetime import timedelta
+    import re
+
+    schedule_str = schedule_str.lower().strip()
+    now = datetime.now()
+
+    # "in X minutes/hours/days" - one-time
+    match = re.match(r'in\s+(\d+)\s+(minute|hour|day)s?', schedule_str)
+    if match:
+        amount = int(match.group(1))
+        unit = match.group(2)
+        if unit == 'minute':
+            next_run = now + timedelta(minutes=amount)
+        elif unit == 'hour':
+            next_run = now + timedelta(hours=amount)
+        elif unit == 'day':
+            next_run = now + timedelta(days=amount)
+        return ('once', None, next_run.isoformat())
+
+    # "at HH:MM" - one-time today or tomorrow
+    match = re.match(r'at\s+(\d{1,2}):(\d{2})', schedule_str)
+    if match:
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        return ('once', None, next_run.isoformat())
+
+    # "daily at HH:MM"
+    match = re.match(r'daily\s+at\s+(\d{1,2}):(\d{2})', schedule_str)
+    if match:
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        cron = f"{minute} {hour} * * *"
+        next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        return ('cron', cron, next_run.isoformat())
+
+    # "hourly"
+    if schedule_str == 'hourly':
+        next_run = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        return ('cron', '0 * * * *', next_run.isoformat())
+
+    # "every X minutes"
+    match = re.match(r'every\s+(\d+)\s+minutes?', schedule_str)
+    if match:
+        minutes = int(match.group(1))
+        cron = f"*/{minutes} * * * *"
+        next_run = now + timedelta(minutes=minutes)
+        return ('cron', cron, next_run.isoformat())
+
+    # "every X hours"
+    match = re.match(r'every\s+(\d+)\s+hours?', schedule_str)
+    if match:
+        hours = int(match.group(1))
+        cron = f"0 */{hours} * * *"
+        next_run = now + timedelta(hours=hours)
+        return ('cron', cron, next_run.isoformat())
+
+    # Raw cron expression (5 parts)
+    if re.match(r'^[\d\*\/\-\,]+\s+[\d\*\/\-\,]+\s+[\d\*\/\-\,]+\s+[\d\*\/\-\,]+\s+[\d\*\/\-\,]+$', schedule_str):
+        # Calculate next run from cron (simplified - just use 1 minute from now for now)
+        next_run = now + timedelta(minutes=1)
+        return ('cron', schedule_str, next_run.isoformat())
+
+    # Default: run in 1 minute
+    return ('once', None, (now + timedelta(minutes=1)).isoformat())
+
+
+def calculate_next_run(cron_expression):
+    """Calculate next run time from a cron expression (simplified)"""
+    from datetime import timedelta
+    import re
+
+    now = datetime.now()
+    parts = cron_expression.split()
+    if len(parts) != 5:
+        return (now + timedelta(minutes=1)).isoformat()
+
+    minute, hour, day, month, dow = parts
+
+    # Handle simple cases
+    if minute.startswith('*/'):
+        # Every N minutes
+        interval = int(minute[2:])
+        next_min = ((now.minute // interval) + 1) * interval
+        if next_min >= 60:
+            return (now + timedelta(hours=1)).replace(minute=0, second=0).isoformat()
+        return now.replace(minute=next_min, second=0).isoformat()
+
+    if hour.startswith('*/'):
+        # Every N hours
+        interval = int(hour[2:])
+        next_hour = ((now.hour // interval) + 1) * interval
+        if next_hour >= 24:
+            return (now + timedelta(days=1)).replace(hour=0, minute=0, second=0).isoformat()
+        return now.replace(hour=next_hour, minute=0, second=0).isoformat()
+
+    # Daily at specific time
+    if minute.isdigit() and hour.isdigit():
+        target = now.replace(hour=int(hour), minute=int(minute), second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        return target.isoformat()
+
+    # Default: 1 hour from now
+    return (now + timedelta(hours=1)).isoformat()
+
+
+def execute_job_action(action, params):
+    """
+    Execute a job action and return (success, result).
+    This is the core executor for scheduled jobs.
+    """
+    try:
+        params = json.loads(params) if isinstance(params, str) else (params or {})
+
+        if action == 'command':
+            # Run a whitelisted command
+            cmd_name = params.get('command', 'date')
+            if cmd_name not in ALLOWED_COMMANDS:
+                return False, f"Command '{cmd_name}' not in whitelist"
+
+            cmd_info = ALLOWED_COMMANDS[cmd_name]
+            result = subprocess.run(
+                cmd_info['cmd'],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=cmd_info.get('cwd')
+            )
+            output = result.stdout.strip() or result.stderr.strip()
+            return result.returncode == 0, output[:1000]
+
+        elif action == 'note_write':
+            # Write to a note
+            filename = params.get('filename', 'job_output')
+            content = params.get('content', '')
+            append = params.get('append', True)
+
+            safe_name = sanitize_filename(filename)
+            note_path = NOTES_DIR / safe_name
+
+            if append and note_path.exists():
+                existing = note_path.read_text()
+                content = existing + f"\n\n[{datetime.now().isoformat()}]\n{content}"
+
+            note_path.write_text(content)
+            return True, f"Wrote to {safe_name}"
+
+        elif action == 'note_read':
+            # Read a note
+            filename = params.get('filename')
+            if not filename:
+                return False, "No filename specified"
+
+            safe_name = sanitize_filename(filename)
+            note_path = NOTES_DIR / safe_name
+
+            if not note_path.exists():
+                return False, f"Note '{filename}' not found"
+
+            content = note_path.read_text()
+            return True, content[:1000]
+
+        elif action == 'search':
+            # Web search
+            query = params.get('query')
+            if not query:
+                return False, "No search query specified"
+
+            # Use same search logic as the endpoint
+            import urllib.request
+            import urllib.parse
+
+            encoded_query = urllib.parse.quote_plus(query)
+            url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+            })
+
+            with urllib.request.urlopen(req, timeout=10) as response:
+                html = response.read().decode('utf-8')
+
+            # Simple extraction of first few results
+            results = []
+            import re
+            for match in re.finditer(r'class="result__a"[^>]*>([^<]+)</a>', html):
+                results.append(match.group(1).strip())
+                if len(results) >= 3:
+                    break
+
+            return True, f"Search '{query}': {', '.join(results) if results else 'No results'}"
+
+        elif action == 'server_status':
+            # Get server status
+            cpu = psutil.cpu_percent(interval=0.5)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+
+            status = f"CPU: {cpu}%, Memory: {mem.percent}%, Disk: {disk.percent}%"
+            return True, status
+
+        elif action == 'memory_add':
+            # Add to memory (calls the memory endpoint logic)
+            name = params.get('name')
+            content = params.get('content')
+            if not name or not content:
+                return False, "Name and content required for memory_add"
+
+            # Would need to call the memory functions directly
+            return True, f"Memory '{name}' would be added (not implemented in job runner yet)"
+
+        elif action == 'remind':
+            # Simple reminder - just logs
+            message = params.get('message', 'Reminder!')
+            return True, f"REMINDER: {message}"
+
+        else:
+            return False, f"Unknown action: {action}"
+
+    except subprocess.TimeoutExpired:
+        return False, "Command timed out"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+
+@app.route('/api/jobs', methods=['GET'])
+def handle_jobs():
+    """
+    All-in-one jobs endpoint for ElevenLabs tool.
+    Query params:
+      - action: 'list', 'schedule', 'cancel', 'status', 'history'
+      - name: job name (for schedule)
+      - schedule: when to run (e.g., "in 5 minutes", "daily at 9:00")
+      - job_action: what to do (command, note_write, search, etc.)
+      - params: JSON string of action parameters
+      - job_id: for cancel/status/history
+    """
+    action = request.args.get('action', 'list')
+    name = request.args.get('name', '')
+    schedule = request.args.get('schedule', '')
+    job_action = request.args.get('job_action', '')
+    params = request.args.get('params', '{}')
+    job_id = request.args.get('job_id', '')
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    now = datetime.now().isoformat()
+
+    try:
+        # LIST jobs
+        if action == 'list':
+            status_filter = request.args.get('status', '')  # pending, running, completed, failed, cancelled
+
+            if status_filter:
+                c.execute('SELECT * FROM jobs WHERE status = ? ORDER BY next_run ASC', (status_filter,))
+            else:
+                c.execute('SELECT * FROM jobs ORDER BY CASE WHEN status = "pending" THEN 0 WHEN status = "running" THEN 1 ELSE 2 END, next_run ASC')
+
+            rows = c.fetchall()
+            jobs = [dict(row) for row in rows]
+
+            if not jobs:
+                return jsonify({
+                    "jobs": [],
+                    "count": 0,
+                    "response": "No jobs scheduled. Tell me to schedule something!"
+                })
+
+            # Summarize
+            pending = [j for j in jobs if j['status'] == 'pending']
+            completed = [j for j in jobs if j['status'] == 'completed']
+
+            summary_parts = []
+            if pending:
+                next_job = pending[0]
+                summary_parts.append(f"{len(pending)} pending, next: '{next_job['name']}' at {next_job['next_run'][:16]}")
+            if completed:
+                summary_parts.append(f"{len(completed)} completed")
+
+            return jsonify({
+                "jobs": jobs,
+                "count": len(jobs),
+                "response": f"I have {len(jobs)} job(s). {'; '.join(summary_parts)}"
+            })
+
+        # SCHEDULE a new job
+        elif action == 'schedule':
+            if not name:
+                return jsonify({"error": "name required", "response": "What should I call this job?"})
+            if not schedule:
+                return jsonify({"error": "schedule required", "response": "When should I run this? e.g., 'in 5 minutes', 'daily at 9:00'"})
+            if not job_action:
+                return jsonify({"error": "job_action required", "response": f"What should I do? Options: {', '.join(JOB_ACTIONS.keys())}"})
+            if job_action not in JOB_ACTIONS:
+                return jsonify({"error": "invalid job_action", "response": f"Unknown action '{job_action}'. Options: {', '.join(JOB_ACTIONS.keys())}"})
+
+            # Parse schedule
+            schedule_type, cron_expr, next_run = parse_schedule(schedule)
+
+            # Validate params JSON
+            try:
+                json.loads(params) if params else {}
+            except:
+                return jsonify({"error": "invalid params", "response": "The params must be valid JSON"})
+
+            c.execute('''
+                INSERT INTO jobs (name, job_type, schedule_type, cron_expression, next_run, status, action, action_params, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+            ''', (name, job_action, schedule_type, cron_expr, next_run, job_action, params, now, now))
+
+            job_id = c.lastrowid
+            conn.commit()
+
+            schedule_desc = f"once at {next_run[:16]}" if schedule_type == 'once' else f"recurring ({cron_expr})"
+
+            return jsonify({
+                "job_id": job_id,
+                "name": name,
+                "schedule_type": schedule_type,
+                "next_run": next_run,
+                "response": f"Scheduled job '{name}' to {JOB_ACTIONS[job_action]} {schedule_desc}."
+            })
+
+        # CANCEL a job
+        elif action == 'cancel':
+            if not job_id and not name:
+                return jsonify({"error": "job_id or name required", "response": "Which job should I cancel?"})
+
+            if job_id:
+                c.execute('UPDATE jobs SET status = "cancelled", updated_at = ? WHERE id = ? AND status = "pending"', (now, job_id))
+            else:
+                c.execute('UPDATE jobs SET status = "cancelled", updated_at = ? WHERE name LIKE ? AND status = "pending"', (now, f'%{name}%'))
+
+            affected = c.rowcount
+            conn.commit()
+
+            if affected > 0:
+                return jsonify({"cancelled": affected, "response": f"Cancelled {affected} job(s)."})
+            return jsonify({"cancelled": 0, "response": "No matching pending jobs found to cancel."})
+
+        # STATUS of a specific job
+        elif action == 'status':
+            if not job_id and not name:
+                return jsonify({"error": "job_id or name required", "response": "Which job do you want status for?"})
+
+            if job_id:
+                c.execute('SELECT * FROM jobs WHERE id = ?', (job_id,))
+            else:
+                c.execute('SELECT * FROM jobs WHERE name LIKE ? ORDER BY created_at DESC LIMIT 1', (f'%{name}%',))
+
+            row = c.fetchone()
+            if not row:
+                return jsonify({"error": "not found", "response": "Couldn't find that job."})
+
+            job = dict(row)
+            return jsonify({
+                "job": job,
+                "response": f"Job '{job['name']}': status={job['status']}, next_run={job['next_run'][:16] if job['next_run'] else 'N/A'}, last_result={job['result'][:100] if job['result'] else 'none'}"
+            })
+
+        # HISTORY of job runs
+        elif action == 'history':
+            limit = int(request.args.get('limit', 10))
+
+            if job_id:
+                c.execute('SELECT * FROM job_history WHERE job_id = ? ORDER BY run_at DESC LIMIT ?', (job_id, limit))
+            else:
+                c.execute('SELECT jh.*, j.name FROM job_history jh JOIN jobs j ON jh.job_id = j.id ORDER BY run_at DESC LIMIT ?', (limit,))
+
+            rows = c.fetchall()
+            history = [dict(row) for row in rows]
+
+            if not history:
+                return jsonify({"history": [], "response": "No job history yet."})
+
+            return jsonify({
+                "history": history,
+                "count": len(history),
+                "response": f"Last {len(history)} job runs shown."
+            })
+
+        # RUN a job immediately (for testing)
+        elif action == 'run':
+            if not job_id and not name:
+                return jsonify({"error": "job_id or name required", "response": "Which job should I run now?"})
+
+            if job_id:
+                c.execute('SELECT * FROM jobs WHERE id = ?', (job_id,))
+            else:
+                c.execute('SELECT * FROM jobs WHERE name LIKE ? AND status = "pending" ORDER BY created_at DESC LIMIT 1', (f'%{name}%',))
+
+            row = c.fetchone()
+            if not row:
+                return jsonify({"error": "not found", "response": "Couldn't find that job."})
+
+            job = dict(row)
+
+            # Execute the job
+            start_time = datetime.now()
+            success, result = execute_job_action(job['action'], job['action_params'])
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+            new_status = 'completed' if success else 'failed'
+
+            # Update job
+            if job['schedule_type'] == 'once':
+                c.execute('UPDATE jobs SET status = ?, last_run = ?, result = ?, updated_at = ? WHERE id = ?',
+                         (new_status, now, result, now, job['id']))
+            else:
+                # Recurring job - calculate next run
+                next_run = calculate_next_run(job['cron_expression']) if job['cron_expression'] else now
+                c.execute('UPDATE jobs SET status = "pending", last_run = ?, next_run = ?, result = ?, updated_at = ? WHERE id = ?',
+                         (now, next_run, result, now, job['id']))
+
+            # Record history
+            c.execute('INSERT INTO job_history (job_id, run_at, status, result, duration_ms) VALUES (?, ?, ?, ?, ?)',
+                     (job['id'], now, new_status, result, duration_ms))
+
+            conn.commit()
+
+            return jsonify({
+                "job_id": job['id'],
+                "success": success,
+                "result": result,
+                "duration_ms": duration_ms,
+                "response": f"Ran '{job['name']}': {'Success' if success else 'Failed'} - {result[:100]}"
+            })
+
+        else:
+            return jsonify({
+                "error": "invalid action",
+                "response": f"Unknown action '{action}'. Use: list, schedule, cancel, status, history, run"
+            })
+
+    except Exception as e:
+        print(f"Jobs error: {e}")
+        return jsonify({"error": str(e), "response": f"Something went wrong with jobs: {str(e)}"})
+
+    finally:
+        conn.close()
+
+
+@app.route('/api/jobs/run-pending', methods=['POST'])
+def run_pending_jobs():
+    """
+    Run all pending jobs that are due. Called by cron every minute.
+    This is the job runner endpoint.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    now = datetime.now()
+    now_iso = now.isoformat()
+
+    results = []
+
+    try:
+        # Find all pending jobs where next_run <= now
+        c.execute('SELECT * FROM jobs WHERE status = "pending" AND next_run <= ?', (now_iso,))
+        due_jobs = c.fetchall()
+
+        for job in due_jobs:
+            job = dict(job)
+            job_id = job['id']
+
+            # Mark as running
+            c.execute('UPDATE jobs SET status = "running", updated_at = ? WHERE id = ?', (now_iso, job_id))
+            conn.commit()
+
+            # Execute
+            start_time = datetime.now()
+            success, result = execute_job_action(job['action'], job['action_params'])
+            duration_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+
+            new_status = 'completed' if success else 'failed'
+
+            # Update job
+            if job['schedule_type'] == 'once':
+                c.execute('UPDATE jobs SET status = ?, last_run = ?, result = ?, updated_at = ? WHERE id = ?',
+                         (new_status, now_iso, result, now_iso, job_id))
+            else:
+                # Recurring - calculate next run
+                next_run = calculate_next_run(job['cron_expression']) if job['cron_expression'] else now_iso
+                c.execute('UPDATE jobs SET status = "pending", last_run = ?, next_run = ?, result = ?, updated_at = ? WHERE id = ?',
+                         (now_iso, next_run, result, now_iso, job_id))
+
+            # Record history
+            c.execute('INSERT INTO job_history (job_id, run_at, status, result, duration_ms) VALUES (?, ?, ?, ?, ?)',
+                     (job_id, now_iso, new_status, result, duration_ms))
+
+            conn.commit()
+
+            results.append({
+                "job_id": job_id,
+                "name": job['name'],
+                "success": success,
+                "result": result[:200]
+            })
+
+        return jsonify({
+            "ran": len(results),
+            "results": results,
+            "checked_at": now_iso
+        })
+
+    except Exception as e:
+        print(f"Job runner error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        conn.close()
+
+
+@app.route('/api/jobs/actions', methods=['GET'])
+def list_job_actions():
+    """List all available job actions"""
+    return jsonify({
+        "actions": JOB_ACTIONS,
+        "response": f"Available job actions: {', '.join(JOB_ACTIONS.keys())}"
     })
 
 

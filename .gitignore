@@ -31,3 +31,6 @@ memory_docs.json
 
 # Face ownership mapping
 face_owners.json
+
+# Job runner log
+job_runner.log
