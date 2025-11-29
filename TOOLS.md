@@ -23,6 +23,7 @@
 | 7 | manage_notes | `tool_8001kb754p5setqb2qedb7rfez15` | `/api/notes` | Active |
 | 8 | manage_memory | `tool_0301kb77mf7vf0sbdyhxn3w470da` | `/api/memory` | Active |
 | 9 | manage_jobs | `tool_6801kb79mrdwfycsawytjq0gx1ck` | `/api/jobs` | Active |
+| 10 | play_music | `tool_9801kb8k61zpfkksynb8m4wztkkx` | `/api/music` | Active |
 
 ---
 
@@ -49,7 +50,8 @@ When updating the agent, ALWAYS include ALL tool IDs:
     "tool_3501kb73sh0be5tt4xb5162ejdxz",
     "tool_8001kb754p5setqb2qedb7rfez15",
     "tool_0301kb77mf7vf0sbdyhxn3w470da",
-    "tool_6801kb79mrdwfycsawytjq0gx1ck"
+    "tool_6801kb79mrdwfycsawytjq0gx1ck",
+    "tool_9801kb8k61zpfkksynb8m4wztkkx"
 ]
 ```
 
@@ -328,6 +330,50 @@ curl "https://ai-guy.mikecerqua.ca/api/jobs?action=run&name=status_check"
 
 ---
 
+### 10. Music/DJ (play_music)
+
+**Purpose**: DJ Pi-Guy music controls - play, pause, skip, and control music playback
+
+**Endpoint**: `GET /api/music`
+
+**Triggers**: "play music", "play a song", "stop the music", "next track", "skip", "pause music", "turn it up", "turn it down", "what's playing", "list music", "DJ mode"
+
+**Parameters**:
+- `action` - `list`, `play`, `pause`, `resume`, `stop`, `skip`, `next`, `volume`, `status`, `shuffle`
+- `track` - Track name to play (optional, for play action)
+- `volume` - Volume level 0-100 (for volume action)
+
+**Storage**: `music/` directory (MP3, WAV, OGG, M4A, WebM files)
+
+**Frontend Features**:
+- Music button in control bar
+- "Now Playing" display with play/pause/skip controls
+- Volume slider
+- Volume ducking when Pi-Guy speaks
+
+**Test**:
+```bash
+# List available tracks
+curl "https://ai-guy.mikecerqua.ca/api/music?action=list"
+
+# Play random track
+curl "https://ai-guy.mikecerqua.ca/api/music?action=play"
+
+# Play specific track
+curl "https://ai-guy.mikecerqua.ca/api/music?action=play&track=mysong"
+
+# Set volume
+curl "https://ai-guy.mikecerqua.ca/api/music?action=volume&volume=50"
+```
+
+**Adding Music**:
+```bash
+# Upload MP3 files to the server
+scp mysong.mp3 mike@178.156.162.212:/home/mike/Mike-AI/ai-eyes/music/
+```
+
+---
+
 ## Adding a New Tool
 
 ### Step 1: Create the endpoint in server.py
@@ -441,6 +487,8 @@ ELEVENLABS_SEARCH_TOOL_ID=tool_2901kb73sh0ae2a8z7yj04v4chn1
 ELEVENLABS_COMMAND_TOOL_ID=tool_3501kb73sh0be5tt4xb5162ejdxz
 ELEVENLABS_NOTES_TOOL_ID=tool_8001kb754p5setqb2qedb7rfez15
 ELEVENLABS_MEMORY_TOOL_ID=tool_0301kb77mf7vf0sbdyhxn3w470da
+ELEVENLABS_JOBS_TOOL_ID=tool_6801kb79mrdwfycsawytjq0gx1ck
+ELEVENLABS_MUSIC_TOOL_ID=tool_9801kb8k61zpfkksynb8m4wztkkx
 
 # Google Gemini (required for vision)
 GEMINI_API_KEY=xxx
@@ -481,3 +529,5 @@ DOMAIN=ai-guy.mikecerqua.ca
 | 2024-XX-XX | Initial setup | 1-6 |
 | 2024-XX-XX | Added notes system | 7 |
 | 2024-XX-XX | Added memory system | 8 |
+| 2024-XX-XX | Added jobs/scheduling system | 9 |
+| 2024-11-29 | Added music/DJ system | 10 |
