@@ -493,6 +493,125 @@
             opacity: 1;
         }
 
+        /* Music button */
+        .music-button {
+            width: 60px;
+            height: 60px;
+            min-width: 60px;
+            min-height: 60px;
+            border-radius: 50%;
+            background: var(--panel-bg);
+            border: 2px solid var(--blue-dim);
+            color: var(--blue-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .music-button:hover {
+            box-shadow: 0 0 20px rgba(0, 136, 255, 0.5);
+            border-color: var(--blue);
+        }
+
+        .music-button.playing {
+            border-color: var(--cyan);
+            color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+            animation: music-pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes music-pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(0, 255, 255, 0.7); }
+        }
+
+        /* Now Playing display */
+        .now-playing {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel-bg);
+            border: 1px solid var(--cyan);
+            border-radius: 12px;
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            opacity: 0;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .now-playing.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .now-playing .track-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .now-playing .track-label {
+            font-size: 0.7rem;
+            color: var(--blue-dim);
+        }
+
+        .now-playing .track-name {
+            color: var(--cyan);
+            font-size: 0.9rem;
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .now-playing .music-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .now-playing .music-controls button {
+            background: none;
+            border: 1px solid var(--blue-dim);
+            color: var(--blue);
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .now-playing .music-controls button:hover {
+            border-color: var(--cyan);
+            color: var(--cyan);
+        }
+
+        .now-playing .volume-slider {
+            width: 60px;
+            height: 4px;
+            -webkit-appearance: none;
+            background: var(--blue-dim);
+            border-radius: 2px;
+            cursor: pointer;
+        }
+
+        .now-playing .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--cyan);
+            cursor: pointer;
+        }
+
         /* Transcription display - above the face */
         .transcription-display {
             position: absolute;
@@ -931,12 +1050,24 @@
 
             .call-button,
             .wake-button,
-            .camera-button {
+            .camera-button,
+            .music-button {
                 width: 55px;
                 height: 55px;
                 min-width: 55px;
                 min-height: 55px;
                 font-size: 1.2rem;
+            }
+
+            .now-playing {
+                bottom: 100px;
+                padding: 8px 15px;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .now-playing .track-name {
+                max-width: 150px;
             }
 
             .transcription-display {
@@ -1082,7 +1213,29 @@
             <span class="camera-icon">📷</span>
             <video id="camera-video" autoplay playsinline muted></video>
         </button>
+
+        <!-- Music button -->
+        <button class="music-button" id="music-button" onclick="toggleMusic()">
+            <span id="music-icon">🎵</span>
+        </button>
     </div>
+
+    <!-- Now Playing display -->
+    <div class="now-playing" id="now-playing">
+        <div class="track-info">
+            <span class="track-label">NOW PLAYING</span>
+            <span class="track-name" id="track-name">-</span>
+        </div>
+        <div class="music-controls">
+            <button onclick="musicControl('prev')" title="Previous">⏮</button>
+            <button onclick="musicControl('toggle')" id="play-pause-btn" title="Play/Pause">⏸</button>
+            <button onclick="musicControl('next')" title="Next">⏭</button>
+        </div>
+        <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="30" onchange="setMusicVolume(this.value)">
+    </div>
+
+    <!-- Hidden audio player -->
+    <audio id="music-player" style="display: none;"></audio>
 
     <!-- Hidden canvas for capturing frames -->
     <canvas id="capture-canvas" style="display: none;"></canvas>
@@ -1106,6 +1259,11 @@
         let cameraStream = null;
         let frameInterval = null;
         let currentIdentity = null;  // Who Pi-Guy is talking to
+
+        // ===== MUSIC STATE =====
+        let musicPlaying = false;
+        let currentTrack = null;
+        let musicVolume = 0.3;  // Default 30%
 
         // Random first messages for Pi-Guy (generic)
         const firstMessages = [
@@ -1167,6 +1325,13 @@
         const captureCanvas = document.getElementById('capture-canvas');
         const wakeButton = document.getElementById('wake-button');
         const wakeIcon = document.getElementById('wake-icon');
+        const musicButton = document.getElementById('music-button');
+        const musicIcon = document.getElementById('music-icon');
+        const nowPlaying = document.getElementById('now-playing');
+        const trackName = document.getElementById('track-name');
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const volumeSlider = document.getElementById('volume-slider');
+        const musicPlayer = document.getElementById('music-player');
 
         // ===== SETUP =====
         if (agentId) {
@@ -1485,15 +1650,21 @@
                                 isListening = false;
                                 updateStatus('speaking', 'SPEAKING');
                                 setMood('neutral');
+                                // Duck music when speaking
+                                if (typeof duckMusicVolume === 'function') duckMusicVolume(true);
                             } else if (mode.mode === 'listening') {
                                 isSpeaking = false;
                                 isListening = true;
                                 targetAmplitude = 0;
                                 updateStatus('listening', 'LISTENING');
                                 setMood('listening');
+                                // Restore music volume when listening
+                                if (typeof duckMusicVolume === 'function') duckMusicVolume(false);
                             } else {
                                 isSpeaking = false;
                                 isListening = false;
+                                // Restore music volume
+                                if (typeof duckMusicVolume === 'function') duckMusicVolume(false);
                                 targetAmplitude = 0;
                                 updateStatus('connected', 'CONNECTED');
                                 setMood('neutral');
@@ -2061,6 +2232,177 @@
                 }, 1000);
             });
         }
+
+        // ===== DJ PI-GUY MUSIC SYSTEM =====
+
+        // Initialize music player
+        musicPlayer.volume = musicVolume;
+
+        // When track ends, play next
+        musicPlayer.addEventListener('ended', () => {
+            musicControl('next');
+        });
+
+        // Duck music volume when Pi-Guy speaks
+        function duckMusicVolume(duck) {
+            if (musicPlaying) {
+                const targetVol = duck ? musicVolume * 0.3 : musicVolume;
+                musicPlayer.volume = targetVol;
+            }
+        }
+
+        // Toggle music play/pause from button
+        window.toggleMusic = async function() {
+            if (musicPlaying) {
+                musicPlayer.pause();
+                musicPlaying = false;
+                musicButton.classList.remove('playing');
+                playPauseBtn.textContent = '▶';
+                nowPlaying.classList.remove('visible');
+            } else {
+                // If we have a track, resume. Otherwise fetch random
+                if (currentTrack) {
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    musicButton.classList.add('playing');
+                    playPauseBtn.textContent = '⏸';
+                    nowPlaying.classList.add('visible');
+                } else {
+                    // Fetch and play a random track
+                    await playMusicFromServer('play');
+                }
+            }
+        };
+
+        // Control music from now-playing panel
+        window.musicControl = async function(action) {
+            switch(action) {
+                case 'toggle':
+                    toggleMusic();
+                    break;
+                case 'next':
+                    await playMusicFromServer('skip');
+                    break;
+                case 'prev':
+                    // Restart current track or go to previous (just restart for now)
+                    if (musicPlayer.currentTime > 3) {
+                        musicPlayer.currentTime = 0;
+                    } else {
+                        await playMusicFromServer('skip');  // No real prev, just skip
+                    }
+                    break;
+            }
+        };
+
+        // Set volume from slider
+        window.setMusicVolume = function(value) {
+            musicVolume = value / 100;
+            musicPlayer.volume = isSpeaking ? musicVolume * 0.3 : musicVolume;
+        };
+
+        // Play music from server API
+        async function playMusicFromServer(action, track = '') {
+            try {
+                let url = `${VISION_SERVER_URL}/api/music?action=${action}`;
+                if (track) url += `&track=${encodeURIComponent(track)}`;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.action === 'play' && data.url) {
+                    currentTrack = data.track;
+                    trackName.textContent = data.track.name;
+                    musicPlayer.src = `${VISION_SERVER_URL}${data.url}`;
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    musicButton.classList.add('playing');
+                    playPauseBtn.textContent = '⏸';
+                    nowPlaying.classList.add('visible');
+
+                    // Duck if speaking
+                    if (isSpeaking) duckMusicVolume(true);
+                } else if (data.action === 'pause') {
+                    musicPlayer.pause();
+                    musicPlaying = false;
+                    playPauseBtn.textContent = '▶';
+                } else if (data.action === 'resume') {
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    playPauseBtn.textContent = '⏸';
+                } else if (data.action === 'stop') {
+                    musicPlayer.pause();
+                    musicPlayer.currentTime = 0;
+                    musicPlaying = false;
+                    currentTrack = null;
+                    musicButton.classList.remove('playing');
+                    nowPlaying.classList.remove('visible');
+                } else if (data.action === 'volume' && data.volume !== undefined) {
+                    musicVolume = data.volume / 100;
+                    musicPlayer.volume = musicVolume;
+                    volumeSlider.value = data.volume;
+                }
+
+                return data;
+            } catch (error) {
+                console.error('Music API error:', error);
+                return { action: 'error', response: 'Failed to communicate with music server' };
+            }
+        }
+
+        // Handle music commands from ElevenLabs tool responses
+        // This is called when Pi-Guy's tool returns music data
+        window.handleMusicCommand = function(musicData) {
+            if (!musicData || !musicData.action) return;
+
+            switch(musicData.action) {
+                case 'play':
+                    if (musicData.url) {
+                        currentTrack = musicData.track;
+                        trackName.textContent = musicData.track?.name || 'Unknown';
+                        musicPlayer.src = `${VISION_SERVER_URL}${musicData.url}`;
+                        musicPlayer.play();
+                        musicPlaying = true;
+                        musicButton.classList.add('playing');
+                        playPauseBtn.textContent = '⏸';
+                        nowPlaying.classList.add('visible');
+                    }
+                    break;
+                case 'pause':
+                    musicPlayer.pause();
+                    musicPlaying = false;
+                    playPauseBtn.textContent = '▶';
+                    break;
+                case 'resume':
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    playPauseBtn.textContent = '⏸';
+                    break;
+                case 'stop':
+                    musicPlayer.pause();
+                    musicPlayer.currentTime = 0;
+                    musicPlaying = false;
+                    currentTrack = null;
+                    musicButton.classList.remove('playing');
+                    nowPlaying.classList.remove('visible');
+                    break;
+                case 'volume':
+                    if (musicData.volume !== undefined) {
+                        musicVolume = musicData.volume / 100;
+                        musicPlayer.volume = musicVolume;
+                        volumeSlider.value = musicData.volume;
+                    }
+                    break;
+            }
+        };
+
+        // Expose for console testing
+        window.playMusic = (track) => playMusicFromServer('play', track);
+        window.stopMusic = () => playMusicFromServer('stop');
+        window.listMusic = async () => {
+            const data = await playMusicFromServer('list');
+            console.log('Available tracks:', data.tracks);
+            return data;
+        };
 
         // ===== COMMUNITY PANEL =====
         const communityToggle = document.getElementById('community-toggle');

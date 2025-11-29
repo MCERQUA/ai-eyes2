@@ -1153,6 +1153,10 @@ def list_commands():
 NOTES_DIR = Path(__file__).parent / "pi_notes"
 NOTES_DIR.mkdir(exist_ok=True)
 
+# Music directory for DJ Pi-Guy
+MUSIC_DIR = Path(__file__).parent / "music"
+MUSIC_DIR.mkdir(exist_ok=True)
+
 def sanitize_filename(name):
     """Sanitize filename to prevent path traversal"""
     # Remove any path separators and dangerous characters
@@ -2271,6 +2275,298 @@ def list_all_knowledge():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ===== DJ PI-GUY MUSIC SYSTEM =====
+
+# Current music state (shared across requests)
+current_music_state = {
+    "playing": False,
+    "current_track": None,
+    "volume": 0.3,  # 0.0 to 1.0
+    "queue": [],
+    "shuffle": False
+}
+
+def get_music_files():
+    """Get list of music files in the music directory"""
+    music_extensions = {'.mp3', '.wav', '.ogg', '.m4a', '.webm'}
+    files = []
+    for f in MUSIC_DIR.iterdir():
+        if f.is_file() and f.suffix.lower() in music_extensions:
+            files.append({
+                'filename': f.name,
+                'name': f.stem,  # filename without extension
+                'size_bytes': f.stat().st_size,
+                'format': f.suffix.lower()[1:]
+            })
+    return sorted(files, key=lambda x: x['name'].lower())
+
+@app.route('/music/<filename>')
+def serve_music_file(filename):
+    """Serve music files directly"""
+    # Sanitize filename
+    safe_filename = ''.join(c for c in filename if c.isalnum() or c in '._- ')
+    music_path = MUSIC_DIR / safe_filename
+
+    if not music_path.exists():
+        return jsonify({"error": "Track not found"}), 404
+
+    # Determine MIME type
+    mime_types = {
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.m4a': 'audio/mp4',
+        '.webm': 'audio/webm'
+    }
+    mime_type = mime_types.get(music_path.suffix.lower(), 'audio/mpeg')
+
+    return send_file(music_path, mimetype=mime_type)
+
+@app.route('/api/music', methods=['GET'])
+def handle_music():
+    """
+    All-in-one music endpoint for ElevenLabs tool (DJ Pi-Guy!)
+    Query params:
+      - action: 'list', 'play', 'pause', 'stop', 'skip', 'volume', 'status', 'queue', 'shuffle'
+      - track: track name or filename (for play)
+      - volume: 0-100 (for volume action)
+
+    Returns music commands for the frontend to execute
+    """
+    import random
+
+    action = request.args.get('action', 'list')
+    track = request.args.get('track', '')
+    volume = request.args.get('volume', '')
+
+    try:
+        music_files = get_music_files()
+
+        # LIST available tracks
+        if action == 'list':
+            if not music_files:
+                return jsonify({
+                    "tracks": [],
+                    "count": 0,
+                    "response": "I don't have any music yet! Upload some MP3s to my music folder and I'll spin them for you."
+                })
+
+            track_names = [t['name'] for t in music_files]
+            return jsonify({
+                "tracks": music_files,
+                "count": len(music_files),
+                "response": f"I've got {len(music_files)} track{'s' if len(music_files) != 1 else ''} ready to spin: {', '.join(track_names[:5])}{'...' if len(track_names) > 5 else ''}"
+            })
+
+        # PLAY a track
+        elif action == 'play':
+            if not music_files:
+                return jsonify({
+                    "action": "error",
+                    "response": "No music files! My DJ booth is empty. Get me some tunes!"
+                })
+
+            selected = None
+
+            if track:
+                # Find matching track
+                track_lower = track.lower()
+                for t in music_files:
+                    if track_lower in t['name'].lower() or track_lower in t['filename'].lower():
+                        selected = t
+                        break
+
+                if not selected:
+                    return jsonify({
+                        "action": "error",
+                        "response": f"Can't find a track matching '{track}'. Try 'list music' to see what I have."
+                    })
+            else:
+                # Random track
+                selected = random.choice(music_files)
+
+            current_music_state["playing"] = True
+            current_music_state["current_track"] = selected
+
+            return jsonify({
+                "action": "play",
+                "track": selected,
+                "url": f"/music/{selected['filename']}",
+                "response": f"DJ-FoamBot spinning up '{selected['name']}'! Let's gooo!"
+            })
+
+        # PAUSE playback
+        elif action == 'pause':
+            current_music_state["playing"] = False
+            track_name = current_music_state.get("current_track", {}).get("name", "the music")
+            return jsonify({
+                "action": "pause",
+                "response": f"Pausing {track_name}. Taking a breather."
+            })
+
+        # RESUME playback
+        elif action == 'resume':
+            current_music_state["playing"] = True
+            track_name = current_music_state.get("current_track", {}).get("name", "the music")
+            return jsonify({
+                "action": "resume",
+                "response": f"Resuming {track_name}. Back on the air!"
+            })
+
+        # STOP playback
+        elif action == 'stop':
+            current_music_state["playing"] = False
+            current_music_state["current_track"] = None
+            return jsonify({
+                "action": "stop",
+                "response": "Music stopped. Silence... beautiful, terrible silence."
+            })
+
+        # SKIP to next track (random or from queue)
+        elif action == 'skip' or action == 'next':
+            if not music_files:
+                return jsonify({
+                    "action": "error",
+                    "response": "No music to skip to!"
+                })
+
+            # Get a different track if possible
+            current_name = current_music_state.get("current_track", {}).get("name")
+            available = [t for t in music_files if t['name'] != current_name]
+            if not available:
+                available = music_files
+
+            selected = random.choice(available)
+            current_music_state["playing"] = True
+            current_music_state["current_track"] = selected
+
+            return jsonify({
+                "action": "play",
+                "track": selected,
+                "url": f"/music/{selected['filename']}",
+                "response": f"Skipping! Next up: '{selected['name']}'!"
+            })
+
+        # VOLUME control
+        elif action == 'volume':
+            if not volume:
+                current_vol = int(current_music_state["volume"] * 100)
+                return jsonify({
+                    "action": "volume",
+                    "volume": current_vol,
+                    "response": f"Volume is at {current_vol}%."
+                })
+
+            try:
+                new_vol = int(volume)
+                new_vol = max(0, min(100, new_vol))  # Clamp 0-100
+                current_music_state["volume"] = new_vol / 100
+
+                # Pi-Guy commentary
+                if new_vol >= 80:
+                    comment = "Cranking it up! Let's make some noise!"
+                elif new_vol >= 50:
+                    comment = "Nice and loud. I like it."
+                elif new_vol >= 20:
+                    comment = "Background vibes. Got it."
+                else:
+                    comment = "Barely a whisper. You sure you want music?"
+
+                return jsonify({
+                    "action": "volume",
+                    "volume": new_vol,
+                    "response": f"Volume set to {new_vol}%. {comment}"
+                })
+            except ValueError:
+                return jsonify({
+                    "action": "error",
+                    "response": f"'{volume}' isn't a valid volume. Give me a number 0-100."
+                })
+
+        # STATUS - what's playing
+        elif action == 'status':
+            track = current_music_state.get("current_track")
+            playing = current_music_state.get("playing", False)
+            vol = int(current_music_state["volume"] * 100)
+
+            if track and playing:
+                return jsonify({
+                    "action": "status",
+                    "playing": True,
+                    "track": track,
+                    "volume": vol,
+                    "response": f"Now playing: '{track['name']}' at {vol}% volume."
+                })
+            elif track:
+                return jsonify({
+                    "action": "status",
+                    "playing": False,
+                    "track": track,
+                    "volume": vol,
+                    "response": f"'{track['name']}' is paused. Volume at {vol}%."
+                })
+            else:
+                return jsonify({
+                    "action": "status",
+                    "playing": False,
+                    "track": None,
+                    "volume": vol,
+                    "response": "Nothing playing right now. Say 'play music' to get the party started!"
+                })
+
+        # SHUFFLE toggle
+        elif action == 'shuffle':
+            current_music_state["shuffle"] = not current_music_state["shuffle"]
+            state = "on" if current_music_state["shuffle"] else "off"
+            return jsonify({
+                "action": "shuffle",
+                "shuffle": current_music_state["shuffle"],
+                "response": f"Shuffle is {state}. {'Random chaos enabled!' if current_music_state['shuffle'] else 'Back to order.'}"
+            })
+
+        else:
+            return jsonify({
+                "action": "error",
+                "response": f"Unknown action '{action}'. Try: list, play, pause, stop, skip, volume, status"
+            })
+
+    except Exception as e:
+        print(f"Music error: {e}")
+        return jsonify({
+            "action": "error",
+            "response": f"My DJ equipment malfunctioned: {str(e)}"
+        })
+
+@app.route('/api/music/upload', methods=['POST'])
+def upload_music():
+    """Upload a music file (optional admin endpoint)"""
+    if 'file' not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({"error": "No filename"}), 400
+
+    # Validate extension
+    allowed_extensions = {'.mp3', '.wav', '.ogg', '.m4a', '.webm'}
+    ext = Path(file.filename).suffix.lower()
+    if ext not in allowed_extensions:
+        return jsonify({"error": f"Invalid format. Allowed: {', '.join(allowed_extensions)}"}), 400
+
+    # Sanitize filename
+    safe_name = ''.join(c for c in Path(file.filename).stem if c.isalnum() or c in ' _-')
+    safe_name = safe_name[:50] + ext  # Limit length
+
+    save_path = MUSIC_DIR / safe_name
+    file.save(save_path)
+
+    return jsonify({
+        "status": "success",
+        "filename": safe_name,
+        "response": f"Track '{safe_name}' uploaded! Ready to spin."
+    })
 
 
 if __name__ == '__main__':
