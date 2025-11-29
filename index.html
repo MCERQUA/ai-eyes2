@@ -1755,6 +1755,7 @@
                                 showTranscription(message.message, true);
                             } else if (message.source === 'ai' && message.message) {
                                 showTranscription(message.message, false);
+                                console.log('🤖 Pi-Guy said:', message.message);
 
                                 // Sync music playback when Pi-Guy mentions playing
                                 const msg = message.message.toLowerCase();
@@ -1764,8 +1765,12 @@
                                     msg.includes('song') || msg.includes('music') ||
                                     msg.includes('tune') || msg.includes('banger') ||
                                     msg.includes('dropping') || msg.includes('coming up')) {
-                                    console.log('🎵 Music mentioned, syncing...');
-                                    syncMusicState();
+                                    console.log('🎵 Music mentioned in:', msg.substring(0, 50) + '...');
+                                    // Small delay to ensure server has processed the webhook
+                                    setTimeout(() => {
+                                        console.log('🎵 Syncing music state...');
+                                        syncMusicState();
+                                    }, 500);
                                 } else if (msg.includes('stopped') || msg.includes('silence')) {
                                     stopMusicPlayback();
                                 } else if (msg.includes('pausing') || msg.includes('paused')) {
@@ -2557,16 +2562,29 @@
                 if (data.playing && data.track) {
                     // Server says music should be playing - start it!
                     currentTrack = data.track;
-                    trackName.textContent = data.track.name;
+                    trackName.textContent = data.track.title || data.track.name;
                     musicPlayer.src = `${VISION_SERVER_URL}/music/${data.track.filename}`;
                     musicPlayer.volume = isSpeaking ? (data.volume / 100) * 0.3 : data.volume / 100;
-                    musicPlayer.play();
-                    musicPlaying = true;
-                    musicButton.classList.add('playing');
-                    playPauseBtn.textContent = '⏸';
-                    nowPlaying.classList.add('visible');
-                    volumeSlider.value = data.volume;
-                    console.log('Music started:', data.track.name);
+
+                    // Try to play - handle autoplay restrictions
+                    try {
+                        await musicPlayer.play();
+                        musicPlaying = true;
+                        musicButton.classList.add('playing');
+                        playPauseBtn.textContent = '⏸';
+                        nowPlaying.classList.add('visible');
+                        volumeSlider.value = data.volume;
+                        console.log('🎵 Music started:', data.track.title || data.track.name);
+                    } catch (playError) {
+                        console.warn('Autoplay blocked, will play on next user interaction:', playError);
+                        // Queue it to play on next click
+                        musicPlaying = false;
+                        musicButton.classList.add('playing'); // Show it's ready
+                        nowPlaying.classList.add('visible');
+                        playPauseBtn.textContent = '▶';
+                    }
+                } else {
+                    console.log('Server says no music playing, checking if we should fetch current track...');
                 }
             } catch (error) {
                 console.error('Failed to sync music state:', error);
