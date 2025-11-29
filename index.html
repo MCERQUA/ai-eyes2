@@ -1756,6 +1756,9 @@
                             } else if (message.source === 'ai' && message.message) {
                                 showTranscription(message.message, false);
 
+                                // Check for DJ sound effects triggers
+                                checkForDJSounds(message.message);
+
                                 // Sync music playback when Pi-Guy mentions playing
                                 const msg = message.message.toLowerCase();
                                 if (msg.includes('spinning up') || msg.includes("let's go") ||
@@ -2596,6 +2599,74 @@
             return data;
         };
         window.syncMusicState = syncMusicState;
+
+        // ===== DJ SOUNDBOARD =====
+        // Sound effects player for DJ-FoamBot
+        const djSoundPlayer = new Audio();
+        djSoundPlayer.volume = 0.8;
+
+        async function playDJSound(soundName) {
+            try {
+                // Fetch sound info from server
+                const response = await fetch(`${VISION_SERVER_URL}/api/dj-sound?action=play&sound=${encodeURIComponent(soundName)}`);
+                const data = await response.json();
+
+                if (data.action === 'play' && data.url) {
+                    djSoundPlayer.src = `${VISION_SERVER_URL}${data.url}`;
+                    djSoundPlayer.currentTime = 0;
+                    await djSoundPlayer.play();
+                    console.log('🎵 DJ Sound played:', data.sound, data.description);
+                    return data;
+                } else {
+                    console.warn('DJ Sound not found:', soundName);
+                    return null;
+                }
+            } catch (error) {
+                console.error('DJ Sound error:', error);
+                return null;
+            }
+        }
+
+        // Detect DJ sound triggers in Pi-Guy's messages
+        function checkForDJSounds(message) {
+            const msg = message.toLowerCase();
+
+            // Direct sound effect mentions (when Pi-Guy says he's playing a sound)
+            const soundTriggers = {
+                'air horn': 'air_horn',
+                'airhorn': 'air_horn',
+                'triple horn': 'air_horn_triple',
+                'ba ba baa': 'air_horn_triple',
+                'siren': 'siren_rise',
+                'woop woop': 'siren_woop',
+                'scratch': 'scratch',
+                'rewind': 'rewind',
+                'record stop': 'record_stop',
+                'whoosh': 'whoosh',
+                'bass drop': 'bass_drop',
+                'drop the bass': 'bass_drop',
+                'applause': 'applause',
+                'crowd goes wild': 'crowd_hype',
+                'laser': 'laser',
+                'pew pew': 'laser',
+                'gunshot': 'gunshot',
+                'explosion': 'explosion',
+                'boom': 'explosion'
+            };
+
+            for (const [trigger, sound] of Object.entries(soundTriggers)) {
+                if (msg.includes(trigger)) {
+                    console.log('🎧 DJ Sound trigger detected:', trigger, '->', sound);
+                    playDJSound(sound);
+                    return sound;
+                }
+            }
+            return null;
+        }
+
+        // Expose for console debugging
+        window.playDJSound = playDJSound;
+        window.checkForDJSounds = checkForDJSounds;
 
         // ===== COMMUNITY PANEL =====
         const communityToggle = document.getElementById('community-toggle');

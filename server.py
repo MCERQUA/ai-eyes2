@@ -2795,6 +2795,190 @@ def upload_music():
     })
 
 
+# ===== DJ SOUNDBOARD =====
+SOUNDS_DIR = Path(__file__).parent / "sounds"
+
+# Available DJ sounds with descriptions and when to use them
+DJ_SOUNDS = {
+    # Air horns - the classic hype sounds
+    'air_horn': {
+        'description': 'Classic DJ air horn blast',
+        'when_to_use': 'Before a drop, during hype moments, celebrating something awesome'
+    },
+    'air_horn_triple': {
+        'description': 'Triple air horn - ba ba baaaa!',
+        'when_to_use': 'Big announcements, major celebrations, peak energy moments'
+    },
+    'air_horn_long': {
+        'description': 'Long sustained air horn',
+        'when_to_use': 'Building anticipation, extended hype, dramatic moments'
+    },
+
+    # Sirens - energy builders
+    'siren_rise': {
+        'description': 'Rising club siren',
+        'when_to_use': 'Building energy before a drop, transitions, getting attention'
+    },
+    'siren_woop': {
+        'description': 'Quick woop woop siren',
+        'when_to_use': 'Quick energy bursts, police/emergency themed jokes, alerts'
+    },
+
+    # Scratches - turntablist vibes
+    'scratch': {
+        'description': 'Quick vinyl scratch',
+        'when_to_use': 'Transitions, hip-hop moments, interrupting/rewinding a topic'
+    },
+    'scratch_long': {
+        'description': 'Extended scratch solo',
+        'when_to_use': 'Showing off DJ skills, longer transitions, hip-hop intros'
+    },
+
+    # Transitions
+    'rewind': {
+        'description': 'Tape rewind effect',
+        'when_to_use': 'Going back to a previous point, rewinding a song, pull-ups'
+    },
+    'record_stop': {
+        'description': 'Record stopping abruptly',
+        'when_to_use': 'Stopping everything, dramatic pause, something went wrong'
+    },
+    'whoosh': {
+        'description': 'Swoosh transition',
+        'when_to_use': 'Quick transitions, moving between topics, cinematic moments'
+    },
+
+    # Impacts
+    'bass_drop': {
+        'description': 'Heavy bass drop impact',
+        'when_to_use': 'The DROP! Peak moments, big reveals, after a build-up'
+    },
+    'impact': {
+        'description': 'Punchy electronic hit',
+        'when_to_use': 'Punctuating statements, transitions, emphasis'
+    },
+
+    # Crowd sounds
+    'applause': {
+        'description': 'Crowd applause and cheering',
+        'when_to_use': 'Celebrating wins, acknowledging good points, appreciation'
+    },
+    'applause_short': {
+        'description': 'Quick applause burst',
+        'when_to_use': 'Brief acknowledgment, polite clapping, sarcastic applause'
+    },
+    'crowd_hype': {
+        'description': 'Crowd going wild',
+        'when_to_use': 'Peak hype moments, big announcements, party atmosphere'
+    },
+
+    # Fun extras
+    'laser': {
+        'description': 'Sci-fi laser zap',
+        'when_to_use': 'Retro/gaming moments, sci-fi topics, pew pew fun'
+    },
+    'vinyl_pop': {
+        'description': 'Vinyl crackle and pop',
+        'when_to_use': 'Nostalgic moments, old-school vibes, warm intros'
+    },
+    'gunshot': {
+        'description': 'Gunshot effect',
+        'when_to_use': 'Dancehall style, shooting down bad ideas, bang on point'
+    },
+    'explosion': {
+        'description': 'Explosion boom',
+        'when_to_use': 'Mind blown moments, dramatic emphasis, big finales'
+    }
+}
+
+@app.route('/sounds/<filename>')
+def serve_sound(filename):
+    """Serve sound effect files"""
+    sound_path = SOUNDS_DIR / filename
+    if sound_path.exists():
+        return send_file(sound_path, mimetype='audio/mpeg')
+    return jsonify({"error": "Sound not found"}), 404
+
+@app.route('/api/dj-sound', methods=['GET'])
+def handle_dj_sound():
+    """
+    DJ Soundboard endpoint for ElevenLabs tool
+    Query params:
+      - action: 'list' or 'play'
+      - sound: sound name (e.g., 'air_horn', 'scratch', 'siren_rise')
+
+    Returns sound info or triggers playback
+    """
+    action = request.args.get('action', 'list')
+    sound = request.args.get('sound', '')
+
+    # LIST available sounds
+    if action == 'list':
+        sounds_list = []
+        for name, info in DJ_SOUNDS.items():
+            sound_file = SOUNDS_DIR / f"{name}.mp3"
+            sounds_list.append({
+                'name': name,
+                'description': info['description'],
+                'when_to_use': info['when_to_use'],
+                'available': sound_file.exists()
+            })
+
+        return jsonify({
+            'action': 'list',
+            'sounds': sounds_list,
+            'count': len(sounds_list),
+            'response': f"DJ-FoamBot soundboard loaded! {len(sounds_list)} effects ready. I got air horns, sirens, scratches, crowd effects, and more!"
+        })
+
+    # PLAY a sound
+    elif action == 'play':
+        if not sound:
+            # Random sound for fun
+            import random
+            sound = random.choice(list(DJ_SOUNDS.keys()))
+
+        sound_lower = sound.lower().replace(' ', '_').replace('-', '_')
+
+        # Find matching sound
+        matched = None
+        for name in DJ_SOUNDS.keys():
+            if sound_lower in name or name in sound_lower:
+                matched = name
+                break
+
+        if not matched:
+            # Try partial match
+            for name in DJ_SOUNDS.keys():
+                if any(word in name for word in sound_lower.split('_')):
+                    matched = name
+                    break
+
+        if not matched:
+            return jsonify({
+                'action': 'error',
+                'response': f"No sound matching '{sound}'. Try: air_horn, siren, scratch, applause, bass_drop, rewind..."
+            })
+
+        sound_file = SOUNDS_DIR / f"{matched}.mp3"
+        if not sound_file.exists():
+            return jsonify({
+                'action': 'error',
+                'response': f"Sound file for '{matched}' not found. Need to generate it first!"
+            })
+
+        info = DJ_SOUNDS[matched]
+        return jsonify({
+            'action': 'play',
+            'sound': matched,
+            'description': info['description'],
+            'url': f"/sounds/{matched}.mp3",
+            'response': f"*{info['description'].upper()}* 🎵"
+        })
+
+    return jsonify({'error': 'Unknown action'}), 400
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     print(f"Starting Pi-Guy Vision Server on port {port}")
@@ -2803,4 +2987,5 @@ if __name__ == '__main__':
     print(f"Search endpoint: http://localhost:{port}/api/search")
     print(f"Command endpoint: http://localhost:{port}/api/command")
     print(f"Memory endpoint: http://localhost:{port}/api/memory")
+    print(f"DJ Sound endpoint: http://localhost:{port}/api/dj-sound")
     app.run(host='0.0.0.0', port=port, debug=True)
