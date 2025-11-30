@@ -2289,8 +2289,51 @@ current_music_state = {
     "shuffle": False,
     "track_started_at": None,  # When current track started (for timing)
     "dj_transition_pending": False,  # Flag for DJ transition
-    "next_track": None  # Pre-selected next track for smooth transition
+    "next_track": None,  # Pre-selected next track for smooth transition
+    # Track reservation system - prevents race conditions between tool calls and text detection
+    "reserved_track": None,  # Track that Pi-Guy announced (waiting for frontend to play)
+    "reserved_at": None,  # Timestamp of reservation (expires after 30s)
+    "reservation_id": None  # Unique ID to track which reservation is active
 }
+
+def reserve_track(track):
+    """
+    Reserve a track that Pi-Guy has announced.
+    This prevents race conditions where text detection triggers a different track.
+    Reservation expires after 30 seconds.
+    """
+    import uuid
+    current_music_state["reserved_track"] = track
+    current_music_state["reserved_at"] = time.time()
+    current_music_state["reservation_id"] = str(uuid.uuid4())[:8]
+    print(f"🎵 Track reserved: {track.get('name', 'Unknown')} (ID: {current_music_state['reservation_id']})")
+    return current_music_state["reservation_id"]
+
+def get_reserved_track():
+    """
+    Get the currently reserved track if it hasn't expired (30 second window).
+    Returns None if no valid reservation exists.
+    """
+    if not current_music_state.get("reserved_track"):
+        return None
+
+    reserved_at = current_music_state.get("reserved_at", 0)
+    if time.time() - reserved_at > 30:  # Reservation expired
+        print(f"🎵 Track reservation expired (was {current_music_state['reserved_track'].get('name', 'Unknown')})")
+        current_music_state["reserved_track"] = None
+        current_music_state["reserved_at"] = None
+        current_music_state["reservation_id"] = None
+        return None
+
+    return current_music_state["reserved_track"]
+
+def clear_reservation():
+    """Clear the track reservation (called when frontend confirms playback)"""
+    if current_music_state.get("reserved_track"):
+        print(f"🎵 Reservation cleared: {current_music_state['reserved_track'].get('name', 'Unknown')}")
+    current_music_state["reserved_track"] = None
+    current_music_state["reserved_at"] = None
+    current_music_state["reservation_id"] = None
 
 def load_music_metadata():
     """Load music metadata from JSON file"""
@@ -2435,6 +2478,9 @@ def handle_music():
             current_music_state["current_track"] = selected
             current_music_state["track_started_at"] = time.time()
 
+            # RESERVE the track - prevents text detection from selecting a different one
+            reservation_id = reserve_track(selected)
+
             # Build a DJ-style intro using metadata
             title = selected.get('title', selected['name'])
             description = selected.get('description', '')
@@ -2463,6 +2509,7 @@ def handle_music():
                 "url": f"/music/{selected['filename']}",
                 "duration_seconds": duration,
                 "dj_hints": dj_hints,
+                "reservation_id": reservation_id,  # For sync verification
                 "response": f"DJ-FoamBot spinning up '{title}'! {description if description else 'Lets gooo!'}"
             })
 
@@ -2512,6 +2559,9 @@ def handle_music():
             current_music_state["current_track"] = selected
             current_music_state["track_started_at"] = time.time()
 
+            # RESERVE the track - prevents text detection from selecting a different one
+            reservation_id = reserve_track(selected)
+
             # Build DJ intro with metadata
             title = selected.get('title', selected['name'])
             description = selected.get('description', '')
@@ -2537,6 +2587,7 @@ def handle_music():
                 "url": f"/music/{selected['filename']}",
                 "duration_seconds": duration,
                 "dj_hints": dj_hints,
+                "reservation_id": reservation_id,  # For sync verification
                 "response": f"Skipping! Next up: '{title}'! {description if description else ''}"
             })
 
@@ -2672,10 +2723,74 @@ def handle_music():
                 "response": f"Shuffle is {state}. {'Random chaos enabled!' if current_music_state['shuffle'] else 'Back to order.'}"
             })
 
+        # SYNC - Get the track that should be playing WITHOUT selecting a new one
+        # This is used by frontend text detection to sync with what Pi-Guy announced
+        # Key difference from 'play': NEVER selects a new random track
+        elif action == 'sync':
+            # First check for a reserved track (Pi-Guy just announced something)
+            reserved = get_reserved_track()
+            if reserved:
+                title = reserved.get('title', reserved['name'])
+                duration = reserved.get('duration_seconds', 120)
+                print(f"🎵 SYNC returning reserved track: {title}")
+                return jsonify({
+                    "action": "play",  # Tell frontend to play this track
+                    "track": reserved,
+                    "url": f"/music/{reserved['filename']}",
+                    "duration_seconds": duration,
+                    "reservation_id": current_music_state.get("reservation_id"),
+                    "synced": True,  # Indicates this is from a sync, not a new selection
+                    "response": f"Synced to '{title}'"
+                })
+
+            # No reservation - check current track
+            track = current_music_state.get("current_track")
+            if track and current_music_state.get("playing"):
+                title = track.get('title', track['name'])
+                duration = track.get('duration_seconds', 120)
+                print(f"🎵 SYNC returning current track: {title}")
+                return jsonify({
+                    "action": "play",
+                    "track": track,
+                    "url": f"/music/{track['filename']}",
+                    "duration_seconds": duration,
+                    "synced": True,
+                    "response": f"Synced to '{title}'"
+                })
+
+            # Nothing to sync to
+            print("🎵 SYNC: No track to sync")
+            return jsonify({
+                "action": "none",
+                "synced": True,
+                "response": "No track to sync to"
+            })
+
+        # CONFIRM - Frontend confirms it started playing the reserved track
+        # Clears the reservation to prevent duplicate plays
+        elif action == 'confirm':
+            res_id = request.args.get('reservation_id', '')
+            current_res_id = current_music_state.get("reservation_id", '')
+
+            if res_id and res_id == current_res_id:
+                track = current_music_state.get("reserved_track")
+                title = track.get('title', track['name']) if track else 'Unknown'
+                clear_reservation()
+                print(f"🎵 Playback confirmed for: {title}")
+                return jsonify({
+                    "action": "confirmed",
+                    "response": f"Playback confirmed: {title}"
+                })
+            else:
+                return jsonify({
+                    "action": "error",
+                    "response": "Invalid or expired reservation"
+                })
+
         else:
             return jsonify({
                 "action": "error",
-                "response": f"Unknown action '{action}'. Try: list, play, pause, stop, skip, volume, status"
+                "response": f"Unknown action '{action}'. Try: list, play, pause, stop, skip, volume, status, sync"
             })
 
     except Exception as e:

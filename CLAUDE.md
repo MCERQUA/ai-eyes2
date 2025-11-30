@@ -396,9 +396,10 @@ tool_4101kb908dbrfmttcz597n7h91ns  # dj_soundboard
 - **Method**: GET
 - **Trigger phrases**: "play music", "play a song", "stop the music", "next track", "skip", "pause music", "turn it up", "turn it down", "what's playing", "list music", "DJ mode"
 - **Query params**:
-  - `action` - one of: `list`, `play`, `pause`, `resume`, `stop`, `skip`, `next`, `volume`, `status`, `shuffle`, `next_up`
+  - `action` - one of: `list`, `play`, `pause`, `resume`, `stop`, `skip`, `next`, `volume`, `status`, `shuffle`, `next_up`, `sync`, `confirm`
   - `track` - track name to play (optional, for play action)
   - `volume` - volume level 0-100 (for volume action)
+  - `reservation_id` - for confirm action (frontend confirms playback)
 - **Storage**: MP3 files in `music/` directory
 - **Metadata**: `music/music_metadata.json` - track info (duration, description, fun facts, phone numbers, ad copy)
 - **Frontend**: Music button + "Now Playing" display with play/pause/skip controls
@@ -407,16 +408,44 @@ tool_4101kb908dbrfmttcz597n7h91ns  # dj_soundboard
 - **Response includes**:
   - `duration_seconds` - track length
   - `dj_hints` - compiled info for Pi-Guy to use in DJ intros (title, duration, description, phone, ad copy, fun facts)
+  - `reservation_id` - unique ID for track reservation (for sync verification)
 - **Additional endpoint**: `/api/music/transition` (POST to queue, GET to check pending)
 
-**⚠️ Music Playback Sync (TEXT DETECTION):**
-Like DJ sounds, music playback is synced via text detection. When Pi-Guy says these trigger words, the frontend calls `syncMusicState()`:
-- "spinning up"
-- "playing"
-- "let's go"
-- "next up"
+**🎵 TRACK RESERVATION SYSTEM (Prevents Wrong Song Playing)**
 
-This ensures music starts playing in the browser when Pi-Guy announces it, regardless of webhook response timing.
+This system ensures Pi-Guy ALWAYS announces the SAME track that actually plays. No more "announces Track A but Track B plays" bugs!
+
+**How it works:**
+1. When Pi-Guy's tool calls `play` or `skip`, the server:
+   - Selects the track (random or specific)
+   - **RESERVES** the track with a 30-second expiration
+   - Returns track info + `reservation_id` to Pi-Guy
+2. Pi-Guy announces the track ("Spinning up Track A!")
+3. Frontend text detection hears music keywords
+4. Frontend calls `action=sync` (NOT `play` or `skip`!)
+5. `sync` returns the **reserved track** WITHOUT selecting a new one
+6. Frontend plays the exact track Pi-Guy announced
+7. Frontend calls `action=confirm&reservation_id=xxx` to clear reservation
+
+**Key actions:**
+- `play` / `skip` - **ONLY called by Pi-Guy's tool** - selects & reserves track
+- `sync` - **ONLY called by frontend text detection** - returns reserved track WITHOUT selecting new one
+- `confirm` - Frontend confirms playback started, clears reservation
+
+**Why this fixes the race condition:**
+Before: Text detection → calls `play` → server picks NEW random track → WRONG track plays!
+After: Text detection → calls `sync` → server returns RESERVED track → CORRECT track plays!
+
+**⚠️ Music Playback Sync (TEXT DETECTION):**
+When Pi-Guy says music-related keywords, frontend calls `syncMusicWithServer()`:
+- "spinning", "playing", "let's go", "next up", "here we go", "coming up", "dropping", "fire up"
+- "switching", "change it up", "different song", "changing it"
+
+This function:
+1. Calls `/api/music?action=sync` (NEVER `play` or `skip`)
+2. Gets the reserved track (the one Pi-Guy announced)
+3. Plays that exact track
+4. Has 2-second debouncing to prevent duplicate calls
 
 #### DJ Soundboard Tool (dj_soundboard) - ⚠️ SPECIAL IMPLEMENTATION
 

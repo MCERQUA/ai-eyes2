@@ -1908,33 +1908,28 @@
                                     ['latin', 'Spanish-ComfyLife']
                                 ];
 
-                                // Check if Pi-Guy mentioned a specific track (in order - first match wins)
-                                let detectedTrack = null;
-                                for (const [keyword, trackName] of trackKeywords) {
-                                    if (msg.includes(keyword)) {
-                                        detectedTrack = trackName;
-                                        console.log('🎵 Detected specific track:', keyword, '->', trackName);
-                                        break;
-                                    }
-                                }
+                                // ===========================================
+                                // MUSIC SYNC: Use 'sync' action to get the track Pi-Guy's tool already selected
+                                // This prevents race conditions where text detection would select a DIFFERENT track
+                                // ===========================================
 
-                                // Detect song change requests - actually skip to next
-                                if ((msg.includes('next') && (msg.includes('song') || msg.includes('track'))) ||
+                                // Detect any music-related keywords to trigger sync
+                                const shouldSyncMusic =
+                                    // Song change/skip keywords
+                                    (msg.includes('next') && (msg.includes('song') || msg.includes('track'))) ||
                                     msg.includes('switching') || msg.includes('change it up') ||
                                     msg.includes('different song') || msg.includes("i'm changing") ||
-                                    msg.includes('changing it') || msg.includes('let me change')) {
-                                    console.log('🎵 Song change detected, skipping...');
-                                    playMusicFromServer('skip');
-                                } else if (detectedTrack) {
-                                    // Play the specific track Pi-Guy mentioned
-                                    console.log('🎵 Playing detected track:', detectedTrack);
-                                    playMusicFromServer('play', detectedTrack);
-                                } else if (msg.includes('spinning') || msg.includes("let's go") ||
+                                    msg.includes('changing it') || msg.includes('let me change') ||
+                                    // Play keywords
+                                    msg.includes('spinning') || msg.includes("let's go") ||
                                     msg.includes('playing') || msg.includes('next up') ||
                                     msg.includes('here we go') || msg.includes('coming up') ||
-                                    msg.includes('dropping') || msg.includes('fire up')) {
-                                    console.log('🎵 Music mentioned, syncing...');
-                                    syncMusicState();
+                                    msg.includes('dropping') || msg.includes('fire up');
+
+                                if (shouldSyncMusic) {
+                                    // Use SYNC action - gets the reserved track WITHOUT selecting a new one
+                                    console.log('🎵 Music detected, syncing with server (NOT selecting new track)...');
+                                    syncMusicWithServer();
                                 } else if (msg.includes('stopped') || msg.includes('stopping') ||
                                     msg.includes('kill the music') || msg.includes('cut the music')) {
                                     stopMusicPlayback();
@@ -2762,6 +2757,75 @@
             console.log('Music paused');
         }
 
+        // =============================================
+        // SYNC MUSIC WITH SERVER - Prevents race conditions
+        // Uses 'sync' action which NEVER selects a new track
+        // Only returns the track that Pi-Guy's tool already reserved
+        // =============================================
+        let lastSyncTime = 0;
+        let lastSyncedTrack = null;
+        const SYNC_DEBOUNCE_MS = 2000;  // Ignore sync calls within 2 seconds of each other
+
+        async function syncMusicWithServer() {
+            const now = Date.now();
+
+            // Debounce: Ignore if we synced recently
+            if (now - lastSyncTime < SYNC_DEBOUNCE_MS) {
+                console.log('🎵 Sync debounced (too soon since last sync)');
+                return;
+            }
+            lastSyncTime = now;
+
+            try {
+                console.log('🎵 Syncing with server (action=sync)...');
+                const response = await fetch(`${VISION_SERVER_URL}/api/music?action=sync`);
+                const data = await response.json();
+                console.log('🎵 Sync response:', data);
+
+                if (data.action === 'play' && data.track && data.url) {
+                    // Check if this is a different track than what's playing
+                    if (currentTrack && currentTrack.filename === data.track.filename && musicPlaying) {
+                        console.log('🎵 Already playing this track, skipping');
+                        return;
+                    }
+
+                    // Check if we just synced to this same track
+                    if (lastSyncedTrack === data.track.filename) {
+                        console.log('🎵 Just synced to this track, skipping duplicate');
+                        return;
+                    }
+                    lastSyncedTrack = data.track.filename;
+
+                    // Play the track!
+                    currentTrack = data.track;
+                    trackName.textContent = data.track.title || data.track.name;
+                    musicPlayer.src = `${VISION_SERVER_URL}${data.url}`;
+                    musicPlayer.volume = isSpeaking ? musicVolume * 0.3 : musicVolume;
+                    musicPlayer.play();
+                    musicPlaying = true;
+                    musicButton.classList.add('playing');
+                    playPauseBtn.textContent = '⏸';
+                    nowPlaying.classList.add('visible');
+                    console.log('🎵 Now playing (synced):', data.track.title || data.track.name);
+
+                    // Confirm playback to clear the reservation
+                    if (data.reservation_id) {
+                        fetch(`${VISION_SERVER_URL}/api/music?action=confirm&reservation_id=${data.reservation_id}`)
+                            .then(r => r.json())
+                            .then(d => console.log('🎵 Reservation confirmed:', d.response))
+                            .catch(e => console.error('🎵 Confirm failed:', e));
+                    }
+                } else if (data.action === 'none') {
+                    console.log('🎵 No track to sync (Pi-Guy hasnt selected one yet)');
+                }
+            } catch (error) {
+                console.error('🎵 Sync failed:', error);
+            }
+        }
+
+        // Clear last synced track after 30 seconds (allow re-sync to same track later)
+        setInterval(() => { lastSyncedTrack = null; }, 30000);
+
         // Expose for console testing
         window.playMusic = (track) => playMusicFromServer('play', track);
         window.stopMusic = () => playMusicFromServer('stop');
@@ -2771,6 +2835,7 @@
             return data;
         };
         window.syncMusicState = syncMusicState;
+        window.syncMusicWithServer = syncMusicWithServer;  // New sync function
 
         // ===== DJ SOUNDBOARD =====
         // Sound effects player for DJ-FoamBot
