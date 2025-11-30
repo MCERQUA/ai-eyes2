@@ -1862,39 +1862,55 @@
                                 const msg = message.message.toLowerCase();
 
                                 // Track name detection - play specific track when mentioned
-                                // These map keywords Pi-Guy might say to actual filenames
-                                const trackKeywords = {
-                                    'mrs. sprayfoam': 'Call-Me-Mrs.Sprayfoam',
-                                    'mrs sprayfoam': 'Call-Me-Mrs.Sprayfoam',
-                                    'mrs.sprayfoam': 'Call-Me-Mrs.Sprayfoam',
-                                    'call me mrs': 'Call-Me-Mrs.Sprayfoam',
-                                    'karen': 'Call-Me-Mrs.Sprayfoam',
-                                    'augusta': 'Call-Me-Mrs.Sprayfoam',
-                                    'foamit': 'Foam-It-we-insulate-you-right',
-                                    'foam it': 'Foam-It-we-insulate-you-right',
-                                    'foam-it': 'Foam-It-we-insulate-you-right',
-                                    'moe': 'Foam-It-we-insulate-you-right',
-                                    'toronto': 'Foam-It-we-insulate-you-right',
-                                    'mississauga': 'Foam-It-we-insulate-you-right',
-                                    'foam everything': 'Foam-Everything',
-                                    'hey diddle': 'Hey-Diddle-Diddle',
-                                    'diddle diddle': 'Hey-Diddle-Diddle',
-                                    'nursery': 'Hey-Diddle-Diddle',
-                                    'og poly': 'OG-Polyurthane-gang',
-                                    'o.g. poly': 'OG-Polyurthane-gang',
-                                    'og polyurethane': 'OG-Polyurthane-gang',
-                                    'polyurethane gang': 'Polyurethane-Gang',
-                                    'poly gang': 'Polyurethane-Gang',
-                                    'espuma': 'Espuma-Calidez-2',
-                                    'calidez': 'Espuma-Calidez-2',
-                                    'spanish comfy': 'Spanish-ComfyLife',
-                                    'comfy life': 'Spanish-ComfyLife',
-                                    'latin': 'Spanish-ComfyLife'
-                                };
+                                // ARRAY (not object) so order is guaranteed - check longer/specific matches FIRST
+                                const trackKeywords = [
+                                    // FoamIt (Moe's Toronto track) - check specific phrases first
+                                    ['insulate you right', 'Foam-It-we-insulate-you-right'],
+                                    ['foam it insulate', 'Foam-It-we-insulate-you-right'],
+                                    ['mississauga', 'Foam-It-we-insulate-you-right'],
+                                    ['foam-it', 'Foam-It-we-insulate-you-right'],
+                                    ['foamit', 'Foam-It-we-insulate-you-right'],
+                                    ['foam it', 'Foam-It-we-insulate-you-right'],
+                                    ['toronto', 'Foam-It-we-insulate-you-right'],
+                                    ["moe's", 'Foam-It-we-insulate-you-right'],
+                                    ['moes', 'Foam-It-we-insulate-you-right'],
 
-                                // Check if Pi-Guy mentioned a specific track
+                                    // Mrs. Sprayfoam (Karen's Augusta track)
+                                    ['mrs. sprayfoam', 'Call-Me-Mrs.Sprayfoam'],
+                                    ['mrs sprayfoam', 'Call-Me-Mrs.Sprayfoam'],
+                                    ['mrs.sprayfoam', 'Call-Me-Mrs.Sprayfoam'],
+                                    ['call me mrs', 'Call-Me-Mrs.Sprayfoam'],
+                                    ["karen's", 'Call-Me-Mrs.Sprayfoam'],
+                                    ['karens', 'Call-Me-Mrs.Sprayfoam'],
+                                    ['augusta', 'Call-Me-Mrs.Sprayfoam'],
+
+                                    // Foam Everything - MUST come after "foam it" variants
+                                    ['foam everything', 'Foam-Everything'],
+
+                                    // Hey Diddle Diddle
+                                    ['hey diddle diddle', 'Hey-Diddle-Diddle'],
+                                    ['diddle diddle', 'Hey-Diddle-Diddle'],
+                                    ['hey diddle', 'Hey-Diddle-Diddle'],
+                                    ['nursery rhyme', 'Hey-Diddle-Diddle'],
+
+                                    // Polyurethane tracks
+                                    ['og polyurethane', 'OG-Polyurthane-gang'],
+                                    ['polyurethane gang', 'Polyurethane-Gang'],
+                                    ['o.g. poly', 'OG-Polyurthane-gang'],
+                                    ['og poly', 'OG-Polyurthane-gang'],
+                                    ['poly gang', 'Polyurethane-Gang'],
+
+                                    // Spanish tracks
+                                    ['spanish comfy', 'Spanish-ComfyLife'],
+                                    ['comfy life', 'Spanish-ComfyLife'],
+                                    ['calidez', 'Espuma-Calidez-2'],
+                                    ['espuma', 'Espuma-Calidez-2'],
+                                    ['latin', 'Spanish-ComfyLife']
+                                ];
+
+                                // Check if Pi-Guy mentioned a specific track (in order - first match wins)
                                 let detectedTrack = null;
-                                for (const [keyword, trackName] of Object.entries(trackKeywords)) {
+                                for (const [keyword, trackName] of trackKeywords) {
                                     if (msg.includes(keyword)) {
                                         detectedTrack = trackName;
                                         console.log('🎵 Detected specific track:', keyword, '->', trackName);
