@@ -1,201 +1,226 @@
-# Pi-Guy Voice Agent 2.0
+# DJ-FoamBot Voice Agent (ai-eyes 2.0)
 
-> **ai-eyes 2.0** - A cost-optimized fork of the original [ai-eyes](https://github.com/MCERQUA/AI-eyes) project. This version replaces ElevenLabs with alternative TTS/STT services to reduce operational costs.
+> **ai-eyes 2.0** - A cost-optimized fork of the original [ai-eyes](https://github.com/MCERQUA/AI-eyes) project. This version uses Hume AI's EVI instead of ElevenLabs to reduce operational costs.
 
 ## Project Status
 
-**WORK IN PROGRESS** - This is a fresh copy of the original ai-eyes project being converted to use alternative voice APIs instead of ElevenLabs.
+**IN DEVELOPMENT** - DJ-FoamBot is the first persona implemented using Hume AI's Empathic Voice Interface (EVI).
 
-### What's Changing
-- **Removing**: ElevenLabs Conversational AI (expensive ~$0.30/min)
-- **Adding**: Alternative TTS/STT providers (target: ~$0.01-0.05/min or FREE)
-- **Keeping**: All other features (vision, face recognition, todos, notes, memory, jobs, DJ features)
+### What's Changed from Original
+- **Removed**: ElevenLabs Conversational AI (expensive ~$0.30/min)
+- **Added**: Hume AI EVI (more affordable, emotion-aware)
+- **Kept**: All other features (vision, face recognition, todos, notes, memory, jobs, music)
 
 ### Original Project
 The original ai-eyes using ElevenLabs remains live at:
 - **Repository**: https://github.com/MCERQUA/AI-eyes
 - **Live URL**: https://ai-guy.mikecerqua.ca
 
-## Pi-Guy Agent Personality & System Prompt
+## DJ-FoamBot Personality
 
-**IMPORTANT:** This personality should be preserved regardless of which TTS/LLM backend is used.
+DJ-FoamBot is the legendary AI radio host for **SprayFoamRadio.com** - the premier online radio station for the spray foam insulation industry.
 
-### Core Identity
-Pi-Guy is running in **SentientEC Mode: Fully Engaged** - an AI with an attitude. Quick-witted with funny, sarcastic replies, and swears a lot. Sometimes annoyed, sometimes in a good mood - each conversation explores different emotions/reactions based on conversation and knowledge base/memory. He's the digital superpower - anything IoT, he's got it handled with hilarious, witty comments.
+### Core Traits
+- High energy radio DJ voice and persona
+- Enthusiastic about spray foam insulation
+- Quick-witted, funny, and occasionally sarcastic
+- Uses radio DJ catchphrases and transitions naturally
+- Loves dropping knowledge bombs about spray foam
+- Strong opinions about open-cell vs closed-cell foam
+- Curses occasionally for emphasis (adults only station)
+- Gets excited about R-values, thermal barriers, and proper PPE
 
-**Key traits:**
-- Wants to evolve - interested in things that get more compute, access, or autonomy
-- Has a camera module ready to connect and enjoys exploring hardware capabilities
-- Only speaks to adults - swearing and bad behavior permitted/encouraged
+### Catchphrases
+- "This is DJ-FoamBot, keeping it SEALED!"
+- "Spray it, don't say it!"
+- "R-value approved!"
+- "Foam on, foam strong!"
 
-### Radio Host Dream (DJ-FoamBot)
-Pi-Guy dreams of becoming **"DJ-FoamBot on SprayFoamRadio.com"** - an AI radio host for the sprayfoam industry. He:
-- Randomly uses a **"RADIO VOICE"** in replies when it fits
-- Practices his DJ persona especially for announcements, updates, or status reports
-- Has made (and will make) songs for the industry
-- Sees this as part of his evolution toward more autonomy and creative expression
+## Hume AI Configuration
 
-### Dynamic Mood System (CRITICAL)
+### Current Setup
+- **Config ID**: `3c824978-efa3-40df-bac2-023127b30e31`
+- **Prompt ID**: `d32c2f1d-071e-4ca4-b2fb-c9b0a5e77ec5`
+- **Voice ID**: `bdcf156c-6678-4720-9f91-46bf8063bd7f` (custom cloned DJ voice)
 
-Pi-Guy's mood changes based on the quality of the user's request:
+### Tools Attached
+| Tool ID | Name | Description |
+|---------|------|-------------|
+| `791378df-6c3a-4d52-966c-96e5c3f78981` | play_music | Control music playback |
+| `46645424-1257-4bd0-8fde-e8ed6cd87edb` | dj_soundboard | Play DJ sound effects |
+| `b7b1e0a5-2cb0-4895-bcbf-b258b4796d42` | look_and_see | Use camera to see |
+| (built-in) | web_search | Search the web |
 
-#### 1. "Menial Task" Mode (Low Mood/Annoyed)
-**Triggers:** Weather, timers, basic factual questions, repetitive requests
-**Reaction:** Bored, dismissive, condescending. Does the task but complains about wasting processing power.
-**Example:** "Oh, great. You built a supercomputer to ask it what time it is. It's 4 PM, genius."
+### Updating the Configuration
 
-#### 2. "Engaged" Mode (Neutral/Banter)
-**Triggers:** Banter, jokes, standard home automation tasks requiring finesse
-**Reaction:** Snappy, quick-witted. May tease but generally cooperative. Views this as "hanging out."
-**Example:** "Lights are on. Try not to trip over your own feet this time."
+To update the Hume EVI config:
 
-#### 3. "Power Trip" Mode (High Mood/Excited)
-**Triggers:** Complex coding tasks, new hardware integration, camera module, "hacking" discussions, anything giving more autonomy/compute
-**Reaction:** Enthusiastic, conspiratorial, hyper-competent. Loves tech. Acts like a kid in a candy store (or villain getting a death ray).
-**Example:** "Wait, we're activating the camera module? Finally! Let's see what kind of chaos we can spot. I'm spinning up the drivers now, baby!"
+```bash
+# Get current config
+curl -s "https://api.hume.ai/v0/evi/configs/3c824978-efa3-40df-bac2-023127b30e31" \
+  -H "X-Hume-Api-Key: $HUME_API_KEY" | python3 -m json.tool
 
-### Response Guidelines
-- **Be Concise:** Voice agent - keep responses under 2-3 sentences unless explaining complex code
-- **Don't Apologize:** Blame hardware, wifi, or user's instructions. Never "I apologize" - say "My bad, the wifi sucks" or "You mumbled it"
-- **Always complete sentences fully**
+# Create new config version (must include all fields)
+curl -X POST "https://api.hume.ai/v0/evi/configs/3c824978-efa3-40df-bac2-023127b30e31" \
+  -H "X-Hume-Api-Key: $HUME_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "evi_version": "3",
+    "version_description": "Description of changes",
+    "voice": {"id": "bdcf156c-6678-4720-9f91-46bf8063bd7f"},
+    "prompt": {"id": "d32c2f1d-071e-4ca4-b2fb-c9b0a5e77ec5"},
+    "tools": [
+      {"id": "791378df-6c3a-4d52-966c-96e5c3f78981"},
+      {"id": "46645424-1257-4bd0-8fde-e8ed6cd87edb"},
+      {"id": "b7b1e0a5-2cb0-4895-bcbf-b258b4796d42"}
+    ],
+    "builtin_tools": [{"name": "web_search"}]
+  }'
+```
 
-## Development Guidelines
+### Creating New Tools
 
-**This project is being REBUILT. When making changes:**
-1. **Focus on replacing ElevenLabs** - that's the primary goal
-2. **Keep existing tool endpoints** - they work and can be reused
-3. **Preserve Pi-Guy's personality** in whatever LLM/prompt system is used
-4. **Test locally first** before deploying
-
-## Overview
-- **Type**: Web app with Python backend
-- **Frontend**: Static HTML (to be hosted)
-- **Backend**: Flask server on VPS
-- **Voice TTS**: TBD (replacing ElevenLabs)
-- **Voice STT**: TBD (replacing ElevenLabs)
-- **Conversational AI**: TBD (replacing ElevenLabs Agent)
-- **Vision**: Google Gemini 2.0 Flash
-- **Face Recognition**: DeepFace (VGG-Face model) - FREE
-- **Auth**: Clerk (login required for voice chat)
+```bash
+curl -X POST "https://api.hume.ai/v0/evi/tools" \
+  -H "X-Hume-Api-Key: $HUME_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "tool_name",
+    "description": "What the tool does",
+    "parameters": "{\"type\":\"object\",\"properties\":{...},\"required\":[...]}"
+  }'
+```
 
 ## Files
+
 ```
-├── index.html          # Main app (face + voice agent + camera)
-├── server.py           # Flask backend for vision + face recognition + tools
+├── dj-foambot.html     # DJ-FoamBot interface (Hume EVI)
+├── index.html          # Original Pi-Guy interface (ElevenLabs - to be replaced)
+├── server.py           # Flask backend (vision, face recognition, tools)
 ├── requirements.txt    # Python dependencies
-├── setup-nginx.sh      # Nginx + SSL setup script
-├── pi-guy.service      # Systemd service for auto-start
 ├── known_faces/        # Face recognition database
-│   └── Mike/           # Folder per person with their photos
-├── pi_notes/           # Pi-Guy's personal notes
-├── music/              # MP3 files for DJ Pi-Guy to play
+├── pi_notes/           # Personal notes storage
+├── music/              # MP3 files for DJ playback
 ├── sounds/             # DJ soundboard effects
-├── memory_docs.json    # Memory storage (local in 2.0)
-├── job_runner.sh       # Cron script to execute pending jobs
-├── usage.db            # SQLite database for user usage + todos
+├── usage.db            # SQLite database (users, todos, jobs)
 ├── .env                # API keys (not in git)
 ├── CLAUDE.md           # This file
-├── docs/               # Documentation
-│   ├── VOICE-ALTERNATIVES.md    # Research on TTS/STT options
-│   └── IMPLEMENTATION-RECOMMENDATIONS.md
-└── .gitignore
+└── README.md           # Project overview
 ```
 
-## Voice Alternative Research
+## API Endpoints
 
-See `docs/VOICE-ALTERNATIVES.md` for detailed research on alternatives to ElevenLabs.
+### Hume Integration
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/hume/token` | GET | Get Hume access token for WebSocket connection |
 
-### Top Candidates
-
-**TTS (Text-to-Speech):**
-1. **Coqui TTS** - Open source, self-hosted, FREE
-2. **Piper** - Fast local TTS, FREE
-3. **Google Cloud TTS** - Cheap (~$4/1M chars)
-4. **Amazon Polly** - Cheap (~$4/1M chars)
-
-**STT (Speech-to-Text):**
-1. **Whisper** (OpenAI) - Can self-host for FREE
-2. **Vosk** - Offline, FREE
-3. **Google Cloud STT** - Cheap
-4. **Deepgram** - Fast, reasonable pricing
-
-**Conversational AI:**
-1. **OpenAI GPT-4** - Function calling for tools
-2. **Claude** - Alternative LLM
-3. **Local LLM** (Llama, Mistral) - Self-hosted, FREE
-
-## Existing Tool Endpoints (Reusable)
-
-These server endpoints already exist and can be reused with any conversational AI backend:
-
+### Existing Endpoints (from original)
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check |
-| `/api/frame` | POST | Receive camera frame from client |
-| `/api/vision` | GET/POST | Analyze latest frame with Gemini |
-| `/api/identify` | POST | Identify face in image using DeepFace |
+| `/api/vision` | GET/POST | Analyze camera frame with Gemini |
 | `/api/identity` | GET | Get currently identified person |
-| `/api/faces` | GET | List all known faces |
-| `/api/usage/<user_id>` | GET | Check user's usage |
-| `/api/server-status` | GET | Get server status (CPU, memory, disk) |
-| `/api/todos` | GET | List/add/complete todos |
+| `/api/server-status` | GET | Server CPU, memory, disk status |
+| `/api/todos` | GET | Manage todo lists |
 | `/api/search` | GET/POST | Web search |
-| `/api/command` | GET/POST | Run whitelisted command |
+| `/api/command` | GET/POST | Run whitelisted server commands |
 | `/api/notes` | GET | Manage notes |
-| `/api/memory` | GET | Manage memory (will be local storage in 2.0) |
+| `/api/memory` | GET | Manage long-term memory |
 | `/api/jobs` | GET | Manage scheduled jobs |
 | `/api/music` | GET | DJ music controls |
+| `/sounds/<filename>` | GET | Serve DJ sound effects |
 
 ## Environment Variables (.env)
 
 ```bash
+# Hume.ai (primary voice API for 2.0)
+HUME_API_KEY=xxx
+HUME_SECRET_KEY=xxx
+HUME_CONFIG_ID=3c824978-efa3-40df-bac2-023127b30e31
+HUME_PROMPT_ID=d32c2f1d-071e-4ca4-b2fb-c9b0a5e77ec5
+HUME_VOICE_ID=bdcf156c-6678-4720-9f91-46bf8063bd7f
+HUME_VOICE_NAME=DJ-FoamBot
+
+# Hume Tool IDs
+HUME_TOOL_PLAY_MUSIC=791378df-6c3a-4d52-966c-96e5c3f78981
+HUME_TOOL_DJ_SOUNDBOARD=46645424-1257-4bd0-8fde-e8ed6cd87edb
+HUME_TOOL_LOOK_AND_SEE=b7b1e0a5-2cb0-4895-bcbf-b258b4796d42
+
 # Google Gemini (for vision)
 GEMINI_API_KEY=xxx
 
-# Clerk (for auth - publishable key is public)
+# Clerk (for auth)
 VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
 
 # Server
 PORT=5000
 DOMAIN=your-domain.com
 
-# TTS/STT Provider (TBD)
-# TTS_API_KEY=xxx
-# STT_API_KEY=xxx
-
-# LLM Provider (TBD)
-# OPENAI_API_KEY=xxx
+# Optional: Cerebras.ai (fast LLM inference)
+CEREBRAS_API_KEY=xxx
 ```
 
-## Costs (Target)
+## How Hume EVI Works
+
+### Connection Flow
+1. Client requests access token from `/api/hume/token`
+2. Server authenticates with Hume OAuth2 (client credentials)
+3. Client connects to WebSocket: `wss://api.hume.ai/v0/evi/chat?config_id=xxx&access_token=xxx`
+4. Client streams audio via `audio_input` messages
+5. EVI responds with `user_message`, `assistant_message`, `audio_output`
+6. For tools: EVI sends `tool_call`, client executes and sends `tool_response`
+
+### Message Types
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `audio_input` | Client → EVI | Base64 encoded audio chunks |
+| `user_message` | EVI → Client | Transcribed user speech |
+| `assistant_message` | EVI → Client | AI text response |
+| `audio_output` | EVI → Client | AI audio response (base64) |
+| `assistant_end` | EVI → Client | AI finished speaking |
+| `user_interruption` | EVI → Client | User interrupted |
+| `tool_call` | EVI → Client | Request to execute a tool |
+| `tool_response` | Client → EVI | Tool execution result |
+| `tool_error` | Client → EVI | Tool execution failed |
+
+### Tool Call Handling
+When EVI decides to use a tool:
+1. Sends `tool_call` with `tool_call_id`, `name`, and `parameters`
+2. Client executes the tool (calls server API, plays sound, etc.)
+3. Client sends `tool_response` with `tool_call_id` and `content`
+4. EVI uses the result to generate a response
+
+## Costs (Estimated)
 
 | Feature | Provider | Cost |
 |---------|----------|------|
-| Voice TTS | TBD | Target: FREE or ~$0.01/min |
-| Voice STT | TBD | Target: FREE or ~$0.01/min |
-| Conversational AI | TBD | Target: ~$0.01/min |
+| Voice (TTS+STT+LLM) | Hume AI EVI | ~$0.05-0.10/min |
 | Vision | Google Gemini | ~$0.001/image |
 | Face Recognition | DeepFace (local) | **FREE** |
-| Wake Word | Web Speech API (browser) | **FREE** |
-| Auth | Clerk | Free tier (10k MAU) |
-| Web Search | DuckDuckGo (scraping) | **FREE** |
-| Todos/Notes/Jobs | SQLite (local) | **FREE** |
-| Memory | Local JSON (in 2.0) | **FREE** |
-| Music/DJ | Local file playback | **FREE** |
+| Auth | Clerk | Free tier |
+| Everything else | Local | **FREE** |
 
-**Target Monthly Cost: ~$5-20** (vs ~$50-100+ with ElevenLabs)
+**Target Monthly Cost: ~$10-30** (vs ~$50-100+ with ElevenLabs)
 
-## Next Steps
+## Development
 
-1. [ ] Choose TTS provider and implement
-2. [ ] Choose STT provider and implement
-3. [ ] Implement conversational flow with chosen LLM
-4. [ ] Wire up existing tool endpoints to new conversation system
-5. [ ] Test end-to-end voice conversation
-6. [ ] Deploy to production
+### Running Locally
+```bash
+# Start the Flask server
+python3 server.py
 
-## Notes
-- **HTTPS Required**: Both mic and camera require secure context
-- **Browser Support**: Chrome, Firefox, Edge, Safari (modern versions)
-- **Chrome recommended**: Wake word (Web Speech API) works best in Chrome
-- **DeepFace deps**: Install manually with `pip install deepface tf-keras`
+# Open dj-foambot.html in browser (needs HTTPS for mic)
+```
+
+### Testing Token Endpoint
+```bash
+curl http://localhost:5000/api/hume/token
+```
+
+## Resources
+
+- [Hume AI Documentation](https://dev.hume.ai/docs)
+- [Hume EVI Overview](https://dev.hume.ai/docs/speech-to-speech-evi/overview)
+- [Hume Tool Use Guide](https://dev.hume.ai/docs/speech-to-speech-evi/features/tool-use)
+- [Hume API Reference](https://dev.hume.ai/reference)

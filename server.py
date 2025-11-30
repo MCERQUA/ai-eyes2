@@ -181,6 +181,46 @@ def health():
     """Health check endpoint"""
     return jsonify({"status": "ok", "service": "pi-guy-vision"})
 
+@app.route('/api/hume/token', methods=['GET'])
+def get_hume_token():
+    """
+    Get Hume access token for EVI WebSocket connection.
+    The client needs this to connect to Hume's EVI API.
+    """
+    api_key = os.getenv('HUME_API_KEY')
+    secret_key = os.getenv('HUME_SECRET_KEY')
+
+    if not api_key or not secret_key:
+        return jsonify({"error": "Hume API credentials not configured"}), 500
+
+    try:
+        # Hume uses OAuth2 client credentials flow
+        import base64
+        credentials = f"{api_key}:{secret_key}"
+        encoded = base64.b64encode(credentials.encode()).decode()
+
+        response = requests.post(
+            'https://api.hume.ai/oauth2-cc/token',
+            headers={
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Authorization': f'Basic {encoded}'
+            },
+            data={'grant_type': 'client_credentials'}
+        )
+
+        if response.status_code != 200:
+            print(f"Hume token error: {response.status_code} - {response.text}")
+            return jsonify({"error": "Failed to get Hume access token"}), 500
+
+        token_data = response.json()
+        return jsonify({
+            "access_token": token_data.get('access_token'),
+            "expires_in": token_data.get('expires_in', 3600)
+        })
+    except Exception as e:
+        print(f"Hume token error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/frame', methods=['POST'])
 def receive_frame():
     """Receive a frame from the client's camera"""

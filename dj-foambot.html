@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJ-FoamBot | Spray Foam Radio</title>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --orange: #ff6600;
+            --orange-dim: #cc5500;
+            --orange-bright: #ff8833;
+            --yellow: #ffdd00;
+            --red: #ff2244;
+            --dark-bg: #0a0a0a;
+            --panel-bg: #1a1a1a;
+            --text: #ffffff;
+        }
+
+        body {
+            background: var(--dark-bg);
+            font-family: 'Arial Black', 'Helvetica Neue', sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* Radio station branding */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .station-name {
+            font-size: 2.5rem;
+            color: var(--orange);
+            text-shadow: 0 0 20px rgba(255, 102, 0, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .station-tagline {
+            font-size: 1rem;
+            color: var(--yellow);
+            margin-top: 5px;
+            letter-spacing: 4px;
+        }
+
+        /* DJ Avatar / Visualizer */
+        .dj-container {
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--panel-bg) 0%, #2a2a2a 100%);
+            border: 4px solid var(--orange);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+            position: relative;
+            box-shadow: 0 0 40px rgba(255, 102, 0, 0.3);
+        }
+
+        .dj-container.speaking {
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 40px rgba(255, 102, 0, 0.3); }
+            50% { box-shadow: 0 0 60px rgba(255, 102, 0, 0.6); }
+        }
+
+        .dj-icon {
+            font-size: 120px;
+        }
+
+        .on-air {
+            position: absolute;
+            top: -10px;
+            background: var(--red);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .on-air.hidden {
+            display: none;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Status display */
+        .status {
+            font-size: 1.2rem;
+            color: var(--orange);
+            margin-bottom: 20px;
+            min-height: 30px;
+        }
+
+        /* Control buttons */
+        .controls {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .btn-call {
+            background: linear-gradient(135deg, var(--orange) 0%, var(--orange-dim) 100%);
+            color: white;
+        }
+
+        .btn-call:hover {
+            background: linear-gradient(135deg, var(--orange-bright) 0%, var(--orange) 100%);
+            transform: scale(1.05);
+        }
+
+        .btn-call.active {
+            background: linear-gradient(135deg, var(--red) 0%, #cc1133 100%);
+        }
+
+        .btn-call:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Transcript area */
+        .transcript-container {
+            width: 100%;
+            max-width: 600px;
+            background: var(--panel-bg);
+            border-radius: 15px;
+            padding: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .transcript-title {
+            color: var(--orange);
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+        }
+
+        .transcript {
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .transcript .user {
+            color: #88ff88;
+        }
+
+        .transcript .ai {
+            color: var(--orange);
+        }
+
+        .transcript-entry {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Error display */
+        .error {
+            color: var(--red);
+            background: rgba(255, 34, 68, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 30px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .footer a {
+            color: var(--orange);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="station-name">SPRAY FOAM RADIO</div>
+        <div class="station-tagline">KEEPING IT SEALED 24/7</div>
+    </div>
+
+    <div class="dj-container" id="djContainer">
+        <div class="on-air hidden" id="onAir">ON AIR</div>
+        <div class="dj-icon">🎧</div>
+    </div>
+
+    <div class="status" id="status">Click to talk to DJ-FoamBot</div>
+
+    <div class="controls">
+        <button class="btn btn-call" id="callBtn" onclick="toggleCall()">
+            Start Call
+        </button>
+    </div>
+
+    <div class="transcript-container">
+        <div class="transcript-title">LIVE TRANSCRIPT</div>
+        <div class="transcript" id="transcript">
+            <div class="transcript-entry ai">
+                <strong>DJ-FoamBot:</strong> Ready to drop some knowledge about spray foam! Hit that call button.
+            </div>
+        </div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <div class="footer">
+        Powered by <a href="https://hume.ai" target="_blank">Hume AI</a> |
+        <a href="https://sprayfoamradio.com" target="_blank">SprayFoamRadio.com</a>
+    </div>
+
+    <script type="module">
+        // ===== CONFIGURATION =====
+        const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? 'http://localhost:5000'
+            : 'https://ai-guy.mikecerqua.ca';
+
+        const HUME_CONFIG_ID = '3c824978-efa3-40df-bac2-023127b30e31';
+
+        // ===== STATE =====
+        let isConnected = false;
+        let isConnecting = false;
+        let socket = null;
+        let audioContext = null;
+        let mediaRecorder = null;
+        let audioQueue = [];
+        let isPlaying = false;
+
+        // ===== DOM ELEMENTS =====
+        const callBtn = document.getElementById('callBtn');
+        const status = document.getElementById('status');
+        const onAir = document.getElementById('onAir');
+        const djContainer = document.getElementById('djContainer');
+        const transcript = document.getElementById('transcript');
+        const errorDiv = document.getElementById('error');
+
+        // ===== AUDIO CONTEXT =====
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            return audioContext;
+        }
+
+        // ===== GET ACCESS TOKEN =====
+        async function getAccessToken() {
+            try {
+                const response = await fetch(`${SERVER_URL}/api/hume/token`);
+                if (!response.ok) {
+                    throw new Error('Failed to get access token');
+                }
+                const data = await response.json();
+                return data.access_token;
+            } catch (error) {
+                console.error('Error getting access token:', error);
+                throw error;
+            }
+        }
+
+        // ===== CONNECT TO HUME EVI =====
+        async function connect() {
+            if (isConnecting || isConnected) return;
+
+            isConnecting = true;
+            updateStatus('Connecting...');
+            callBtn.disabled = true;
+
+            try {
+                // Get access token from our server
+                const accessToken = await getAccessToken();
+
+                // Connect to Hume EVI WebSocket
+                const wsUrl = `wss://api.hume.ai/v0/evi/chat?config_id=${HUME_CONFIG_ID}&access_token=${accessToken}`;
+
+                socket = new WebSocket(wsUrl);
+
+                socket.onopen = () => {
+                    console.log('Connected to Hume EVI');
+                    isConnected = true;
+                    isConnecting = false;
+                    updateStatus('Connected - Speak now!');
+                    callBtn.textContent = 'End Call';
+                    callBtn.classList.add('active');
+                    callBtn.disabled = false;
+                    onAir.classList.remove('hidden');
+
+                    // Start capturing audio
+                    startAudioCapture();
+                };
+
+                socket.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    handleMessage(message);
+                };
+
+                socket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showError('Connection error. Please try again.');
+                    disconnect();
+                };
+
+                socket.onclose = () => {
+                    console.log('WebSocket closed');
+                    disconnect();
+                };
+
+            } catch (error) {
+                console.error('Connection failed:', error);
+                showError(error.message);
+                isConnecting = false;
+                callBtn.disabled = false;
+                updateStatus('Connection failed');
+            }
+        }
+
+        // ===== DISCONNECT =====
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+
+            isConnected = false;
+            isConnecting = false;
+            callBtn.textContent = 'Start Call';
+            callBtn.classList.remove('active');
+            callBtn.disabled = false;
+            onAir.classList.add('hidden');
+            djContainer.classList.remove('speaking');
+            updateStatus('Call ended');
+
+            // Clear audio queue
+            audioQueue = [];
+            isPlaying = false;
+        }
+
+        // ===== TOGGLE CALL =====
+        window.toggleCall = function() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                initAudioContext();
+                connect();
+            }
+        };
+
+        // ===== AUDIO CAPTURE =====
+        async function startAudioCapture() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        sampleRate: 16000
+                    }
+                });
+
+                // Use webm format which Hume supports
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                    ? 'audio/webm;codecs=opus'
+                    : 'audio/webm';
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+
+                mediaRecorder.ondataavailable = async (event) => {
+                    if (event.data.size > 0 && socket && socket.readyState === WebSocket.OPEN) {
+                        const arrayBuffer = await event.data.arrayBuffer();
+                        const base64 = arrayBufferToBase64(arrayBuffer);
+
+                        socket.send(JSON.stringify({
+                            type: 'audio_input',
+                            data: base64
+                        }));
+                    }
+                };
+
+                // Send audio chunks every 100ms
+                mediaRecorder.start(100);
+                console.log('Audio capture started');
+
+            } catch (error) {
+                console.error('Failed to start audio capture:', error);
+                showError('Microphone access denied');
+                disconnect();
+            }
+        }
+
+        // ===== HANDLE MESSAGES =====
+        function handleMessage(message) {
+            console.log('Received:', message.type, message);
+
+            switch (message.type) {
+                case 'user_message':
+                    if (message.message && message.message.content) {
+                        addTranscript('user', message.message.content);
+                    }
+                    break;
+
+                case 'assistant_message':
+                    if (message.message && message.message.content) {
+                        addTranscript('ai', message.message.content);
+                    }
+                    break;
+
+                case 'audio_output':
+                    if (message.data) {
+                        djContainer.classList.add('speaking');
+                        updateStatus('DJ-FoamBot is speaking...');
+                        queueAudio(message.data);
+                    }
+                    break;
+
+                case 'assistant_end':
+                    djContainer.classList.remove('speaking');
+                    updateStatus('Listening...');
+                    break;
+
+                case 'user_interruption':
+                    // Stop current playback
+                    audioQueue = [];
+                    isPlaying = false;
+                    djContainer.classList.remove('speaking');
+                    break;
+
+                case 'tool_call':
+                    // Handle tool calls from EVI
+                    handleToolCall(message);
+                    break;
+
+                case 'error':
+                    console.error('EVI Error:', message);
+                    showError(message.message || 'An error occurred');
+                    break;
+            }
+        }
+
+        // ===== TOOL CALL HANDLING =====
+        async function handleToolCall(message) {
+            const toolCallId = message.tool_call_id;
+            const toolName = message.name;
+            const parameters = message.parameters || {};
+
+            console.log(`Tool call: ${toolName}`, parameters);
+
+            let result;
+
+            try {
+                switch (toolName) {
+                    case 'play_music':
+                        result = await handlePlayMusic(parameters);
+                        break;
+
+                    case 'dj_soundboard':
+                        result = await handleDJSoundboard(parameters);
+                        break;
+
+                    case 'look_and_see':
+                        result = await handleLookAndSee(parameters);
+                        break;
+
+                    default:
+                        result = { error: `Unknown tool: ${toolName}` };
+                }
+
+                // Send tool response back to EVI
+                sendToolResponse(toolCallId, result);
+
+            } catch (error) {
+                console.error(`Tool ${toolName} error:`, error);
+                sendToolError(toolCallId, error.message);
+            }
+        }
+
+        function sendToolResponse(toolCallId, result) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'tool_response',
+                    tool_call_id: toolCallId,
+                    content: JSON.stringify(result)
+                }));
+            }
+        }
+
+        function sendToolError(toolCallId, errorMessage) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({
+                    type: 'tool_error',
+                    tool_call_id: toolCallId,
+                    error: errorMessage,
+                    content: 'Sorry, there was an error with that action.'
+                }));
+            }
+        }
+
+        // ===== TOOL IMPLEMENTATIONS =====
+
+        async function handlePlayMusic(params) {
+            const action = params.action || 'status';
+
+            // Call our server's music API
+            const url = new URL(`${SERVER_URL}/api/music`);
+            url.searchParams.set('action', action);
+            if (params.track) url.searchParams.set('track', params.track);
+            if (params.volume !== undefined) url.searchParams.set('volume', params.volume);
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            // TODO: Implement actual music playback in the browser
+            console.log('Music action:', action, data);
+
+            return {
+                success: true,
+                action: action,
+                message: data.message || `Music ${action} executed`,
+                track: data.track,
+                dj_hints: data.dj_hints
+            };
+        }
+
+        async function handleDJSoundboard(params) {
+            const sound = params.sound;
+
+            if (!sound) {
+                return { error: 'No sound specified' };
+            }
+
+            // Play the sound effect
+            try {
+                const audio = new Audio(`${SERVER_URL}/sounds/${sound}.mp3`);
+                audio.volume = 0.8;
+                await audio.play();
+
+                return {
+                    success: true,
+                    sound: sound,
+                    message: `Playing ${sound.replace(/_/g, ' ')}!`
+                };
+            } catch (error) {
+                return {
+                    success: false,
+                    error: `Failed to play sound: ${error.message}`
+                };
+            }
+        }
+
+        async function handleLookAndSee(params) {
+            // Call our server's vision API
+            const response = await fetch(`${SERVER_URL}/api/vision`);
+            const data = await response.json();
+
+            if (data.error) {
+                return {
+                    success: false,
+                    error: data.error,
+                    message: 'Camera not available or no frame captured'
+                };
+            }
+
+            return {
+                success: true,
+                description: data.description || data.message,
+                message: data.description || 'I can see something!'
+            };
+        }
+
+        // ===== AUDIO PLAYBACK =====
+        function queueAudio(base64Data) {
+            audioQueue.push(base64Data);
+            if (!isPlaying) {
+                playNextAudio();
+            }
+        }
+
+        async function playNextAudio() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
+                return;
+            }
+
+            isPlaying = true;
+            const base64Data = audioQueue.shift();
+
+            try {
+                const audioData = base64ToArrayBuffer(base64Data);
+                const audioBuffer = await audioContext.decodeAudioData(audioData);
+
+                const source = audioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(audioContext.destination);
+
+                source.onended = () => {
+                    playNextAudio();
+                };
+
+                source.start(0);
+            } catch (error) {
+                console.error('Audio playback error:', error);
+                playNextAudio(); // Try next chunk
+            }
+        }
+
+        // ===== UTILITY FUNCTIONS =====
+        function arrayBufferToBase64(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function base64ToArrayBuffer(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        function updateStatus(text) {
+            status.textContent = text;
+        }
+
+        function addTranscript(role, text) {
+            const entry = document.createElement('div');
+            entry.className = `transcript-entry ${role}`;
+            entry.innerHTML = `<strong>${role === 'user' ? 'You' : 'DJ-FoamBot'}:</strong> ${text}`;
+            transcript.appendChild(entry);
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+            setTimeout(() => {
+                errorDiv.classList.remove('show');
+            }, 5000);
+        }
+
+        // ===== INIT =====
+        console.log('DJ-FoamBot ready!');
+    </script>
+</body>
+</html>
