@@ -427,29 +427,32 @@ const soundTriggers = {
 - **Purpose**: Gives Pi-Guy knowledge of available sounds and DJ instructions
 - **Server endpoint**: `/api/dj-sound` exists but is mainly for listing sounds
 
-**Available Sounds (21 total in `sounds/` directory):**
-- **Air horns**: `air_horn`, `air_horn_long`
-- **Sirens**: `siren`, `siren_woop`
-- **Scratches**: `scratch`, `scratch_long`
-- **Transitions**: `rewind`, `record_stop`, `whoosh`, `riser`
-- **Impacts**: `bass_drop`, `impact`
-- **Crowd**: `applause`, `crowd_cheer`, `crowd_hype`
+**Available Sounds (13 total in `sounds/` directory):**
+- **Air horn**: `air_horn` (classic DJ horn)
+- **Scratch**: `scratch_long` (DJ scratch solo)
+- **Transitions**: `rewind`, `record_stop`
+- **Impact**: `impact` (punch/hit)
+- **Crowd**: `crowd_cheer`, `crowd_hype`
 - **Vocals**: `yeah`, `lets_go`
-- **Fun**: `laser`, `gunshot`, `explosion`, `vinyl_crackle`
+- **Sound FX**: `laser`, `gunshot`
+- **Comedy**: `bruh`, `sad_trombone`
 
 **Text Trigger Words (what Pi-Guy says → sound that plays):**
 - "air horn", "airhorn", "triple horn" → `air_horn`
-- "siren", "woop woop" → `siren` / `siren_woop`
-- "scratch" → `scratch`
+- "scratch" → `scratch_long`
 - "rewind", "pull up" → `rewind`
-- "bass drop", "drop the bass", "the drop" → `bass_drop`
-- "applause", "crowd goes wild", "crowd cheer" → `applause` / `crowd_hype`
-- "explosion", "boom" → `explosion`
+- "record stop" → `record_stop`
+- "applause", "crowd cheer", "crowd goes wild" → `crowd_cheer` / `crowd_hype`
+- "impact", "punch", "hit" → `impact`
 - "yeah", "let's go", "lets go" → `yeah` / `lets_go`
+- "laser", "pew pew" → `laser`
+- "gunshot", "gun shot" → `gunshot`
+- "bruh" → `bruh`
+- "sad trombone", "fail", "womp womp" → `sad_trombone`
 
 **Preloading:** Common sounds are preloaded on page load for instant playback:
 ```javascript
-['air_horn', 'siren', 'scratch', 'applause', 'bass_drop', 'rewind']
+['air_horn', 'scratch_long', 'crowd_cheer', 'rewind', 'yeah', 'laser']
 ```
 
 **Generator script**: `generate_dj_sounds.py` - creates sounds using ElevenLabs Text-to-Sound API

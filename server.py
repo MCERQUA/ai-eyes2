@@ -2799,35 +2799,19 @@ def upload_music():
 SOUNDS_DIR = Path(__file__).parent / "sounds"
 
 # Available DJ sounds with descriptions and when to use them
+# Current sounds: air_horn, bruh, crowd_cheer, crowd_hype, gunshot, impact, laser,
+# lets_go, record_stop, rewind, sad_trombone, scratch_long, yeah
 DJ_SOUNDS = {
-    # Air horns - the classic hip-hop/dancehall DJ sound
+    # Air horn - the classic hip-hop/dancehall DJ sound
     'air_horn': {
         'description': 'Classic stadium air horn - ba ba baaaa!',
         'when_to_use': 'Before drops, hype moments, celebrating wins, hip-hop DJ style'
     },
-    'air_horn_long': {
-        'description': 'Long sustained stadium air horn',
-        'when_to_use': 'Building anticipation, extended hype, dramatic moments'
-    },
 
-    # Sirens - EDM/Club style
-    'siren': {
-        'description': 'Electronic club siren - rising EDM alarm',
-        'when_to_use': 'Building energy before drops, getting attention, rave vibes'
-    },
-    'siren_woop': {
-        'description': 'Quick woop woop siren',
-        'when_to_use': 'Quick energy bursts, alerts, police themed jokes'
-    },
-
-    # Scratches - turntablist vibes
-    'scratch': {
-        'description': 'Vinyl turntable scratch - wicka wicka',
-        'when_to_use': 'Transitions, hip-hop moments, interrupting topics'
-    },
+    # Scratch
     'scratch_long': {
-        'description': 'Extended DJ scratch solo',
-        'when_to_use': 'Showing off DJ skills, battle scratches, hip-hop intros'
+        'description': 'Extended DJ scratch solo - wicka wicka',
+        'when_to_use': 'Transitions, hip-hop moments, showing off DJ skills'
     },
 
     # Transitions
@@ -2839,20 +2823,8 @@ DJ_SOUNDS = {
         'description': 'Record stopping abruptly',
         'when_to_use': 'Stopping everything, dramatic pause, cutting the music'
     },
-    'whoosh': {
-        'description': 'Cinematic swoosh transition',
-        'when_to_use': 'Quick transitions, moving between topics'
-    },
-    'riser': {
-        'description': 'EDM riser build-up',
-        'when_to_use': 'Building tension before the drop, creating anticipation'
-    },
 
-    # Impacts and drops
-    'bass_drop': {
-        'description': 'Massive EDM bass drop impact',
-        'when_to_use': 'THE DROP! Peak moments, big reveals, dubstep vibes'
-    },
+    # Impacts
     'impact': {
         'description': 'Punchy cinematic impact hit',
         'when_to_use': 'Punctuating statements, transitions, emphasis'
@@ -2861,15 +2833,11 @@ DJ_SOUNDS = {
     # Crowd sounds - club atmosphere
     'crowd_cheer': {
         'description': 'Nightclub crowd cheering and going wild',
-        'when_to_use': 'Big wins, amazing moments, festival energy'
+        'when_to_use': 'Big wins, amazing moments, festival energy, applause'
     },
     'crowd_hype': {
         'description': 'Hyped up rave crowd losing their minds',
         'when_to_use': 'Peak energy moments, party atmosphere'
-    },
-    'applause': {
-        'description': 'Thunderous crowd applause',
-        'when_to_use': 'Celebrating, appreciation, standing ovation'
     },
 
     # DJ vocal shots
@@ -2891,13 +2859,15 @@ DJ_SOUNDS = {
         'description': 'Dancehall gunshot sound - gun finger!',
         'when_to_use': 'Reggae/dancehall vibes, shooting down bad ideas'
     },
-    'explosion': {
-        'description': 'Cinematic explosion boom',
-        'when_to_use': 'Mind blown moments, big finales, dramatic emphasis'
+
+    # Comedy/Bonus sounds
+    'bruh': {
+        'description': 'Classic bruh sound effect',
+        'when_to_use': 'Facepalm moments, disappointment, when someone says something dumb'
     },
-    'vinyl_crackle': {
-        'description': 'Warm vinyl record crackle',
-        'when_to_use': 'Nostalgic moments, old-school vibes, warm intros'
+    'sad_trombone': {
+        'description': 'Sad trombone wah wah wah - womp womp',
+        'when_to_use': 'Fails, disappointments, when things go wrong'
     }
 }
 
