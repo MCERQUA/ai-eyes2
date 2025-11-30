@@ -1985,6 +1985,16 @@
                     return;
                 }
 
+                // Whitelist check - only allowed emails can use voice
+                const ALLOWED_EMAILS = [
+                    'mikecerqua@gmail.com'
+                ];
+                const userEmail = clerkUser.primaryEmailAddress?.emailAddress?.toLowerCase();
+                if (!ALLOWED_EMAILS.includes(userEmail)) {
+                    showError('Access restricted. Contact Mike for access.');
+                    return;
+                }
+
                 // Check usage limit
                 try {
                     const usageResp = await fetch(`${VISION_SERVER_URL}/api/usage/${clerkUser.id}`);
