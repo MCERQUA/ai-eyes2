@@ -1231,7 +1231,7 @@
             <button onclick="musicControl('toggle')" id="play-pause-btn" title="Play/Pause">⏸</button>
             <button onclick="musicControl('next')" title="Next">⏭</button>
         </div>
-        <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="30" onchange="setMusicVolume(this.value)">
+        <input type="range" class="volume-slider" id="volume-slider" min="0" max="100" value="85" onchange="setMusicVolume(this.value)">
     </div>
 
     <!-- Hidden audio player -->
@@ -1288,7 +1288,7 @@
         // ===== MUSIC STATE =====
         let musicPlaying = false;
         let currentTrack = null;
-        let musicVolume = 0.3;  // Default 30%
+        let musicVolume = 0.85;  // Default 85%
 
         // Random first messages for Pi-Guy (generic)
         const firstMessages = [
