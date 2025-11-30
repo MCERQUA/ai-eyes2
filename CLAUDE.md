@@ -188,22 +188,47 @@ The agent has a secondary "Radio Voice" for his DJ-FoamBot persona. This is conf
 
 **When updating the agent, ALWAYS check that `supported_voices` still contains the Radio Voice!**
 
-### Current tools that MUST always be attached to the agent (13 total):
-- look_and_see (vision) - webhook
-- identify_person (face recognition) - webhook
-- manage_todos (todo list) - webhook
-- search_web (web search) - webhook
-- run_command (server commands) - webhook
-- check_server_status (server health) - webhook
-- manage_notes (notes/files) - webhook
-- manage_memory (long-term memory) - webhook
-- manage_jobs (scheduled tasks/cron jobs) - webhook
-- play_music (DJ music controls) - **webhook** (server tracks state, frontend syncs via text detection)
-- dj_soundboard (DJ sound effects) - **client** (but sounds actually play via frontend text detection)
-- end_call (end conversation) - system
-- skip_turn (handle silence) - system
+### Current tools that MUST always be attached to the agent (11 webhook/client + 2 system):
+
+**⚠️ CRITICAL: When updating agent via API, you MUST include ALL tool_ids in the array!**
+**If you only send a partial list, tools will be REMOVED from the agent!**
+
+| Tool ID | Name | Type |
+|---------|------|------|
+| tool_5601kb73sh06e6q9t8ng87bv1qsa | check_server_status | webhook |
+| tool_3401kb73sh07ed5bvhtshsbxq35j | look_and_see | webhook |
+| tool_1901kb73sh08f27bct0d3w81qdgn | identify_person | webhook |
+| tool_4801kb73sh09fxfsvjf3csmca1w5 | manage_todos | webhook |
+| tool_2901kb73sh0ae2a8z7yj04v4chn1 | search_web | webhook |
+| tool_3501kb73sh0be5tt4xb5162ejdxz | run_command | webhook |
+| tool_8001kb754p5setqb2qedb7rfez15 | manage_notes | webhook |
+| tool_0301kb77mf7vf0sbdyhxn3w470da | manage_memory | webhook |
+| tool_6801kb79mrdwfycsawytjq0gx1ck | manage_jobs | webhook |
+| tool_9801kb8k61zpfkksynb8m4wztkkx | play_music | webhook |
+| tool_4101kb908dbrfmttcz597n7h91ns | dj_soundboard | client |
+| end_call | (built-in) | system |
+| skip_turn | (built-in) | system |
 
 **⚠️ NOTE on audio playback:** Both music and DJ sounds use **text detection** in the frontend to trigger playback. When Pi-Guy says trigger words like "spinning up", "playing", "air horn", etc., the frontend detects them and plays audio. This is more reliable than waiting for tool responses.
+
+### ⚠️ COMMON MISTAKES TO AVOID
+
+1. **DON'T reduce max_tokens too low** - Setting below 300 causes Pi-Guy to get cut off mid-sentence. Keep at 500+.
+
+2. **DON'T forget play_music tool** - If music doesn't play, first check if `tool_9801kb8k61zpfkksynb8m4wztkkx` is in the tool_ids array.
+
+3. **DON'T forget manage_jobs tool** - Tool ID `tool_6801kb79mrdwfycsawytjq0gx1ck` for scheduled tasks.
+
+4. **ALWAYS verify tools after API update:**
+```bash
+curl -s "https://api.elevenlabs.io/v1/convai/agents/agent_0801kb2240vcea2ayx0a2qxmheha" \
+  -H "xi-api-key: $ELEVENLABS_API_KEY" | python3 -c "import sys,json; d=json.load(sys.stdin); print('Tools:', len(d['conversation_config']['agent']['prompt']['tool_ids'])); print('\n'.join(d['conversation_config']['agent']['prompt']['tool_ids']))"
+```
+
+5. **Keep DJ sounds in sync** - When updating sounds, update ALL THREE places:
+   - `sounds/` directory (actual MP3 files)
+   - `server.py` DJ_SOUNDS dict
+   - `index.html` soundTriggers object
 
 ## Overview
 - **Type**: Web app with Python backend
