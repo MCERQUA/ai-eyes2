@@ -2503,7 +2503,7 @@
         let nextTrackQueued = null;         // Track queued for smooth transition
         const DJ_INTRO_TIME = 12;           // Seconds before end to trigger DJ intro
 
-        // Monitor playback for DJ transitions
+        // Monitor playback - notify agent when track is ending
         musicPlayer.addEventListener('timeupdate', async () => {
             if (!musicPlaying || !currentTrack) return;
 
@@ -2511,54 +2511,52 @@
             const currentTime = musicPlayer.currentTime;
             const remaining = duration - currentTime;
 
-            // Trigger DJ intro when ~12 seconds remain (enough time to intro next song)
-            if (remaining <= DJ_INTRO_TIME && remaining > (DJ_INTRO_TIME - 1) && !djTransitionTriggered && isConversationActive) {
+            // When ~10 seconds remain, send contextual update to agent
+            if (remaining <= DJ_INTRO_TIME && remaining > (DJ_INTRO_TIME - 1) && !djTransitionTriggered && conversation) {
                 djTransitionTriggered = true;
-                console.log(`🎙️ DJ Transition: ${remaining.toFixed(1)}s remaining - triggering next song intro`);
+                const trackName = currentTrack.title || currentTrack.name || 'current track';
+                console.log(`🎙️ Track "${trackName}" ending in ${remaining.toFixed(1)}s - notifying agent`);
 
-                // Signal the server that a transition is needed
+                // Send contextual update to let agent know song is ending
                 try {
-                    const response = await fetch(`${VISION_SERVER_URL}/api/music/transition`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ remaining_seconds: remaining })
-                    });
-                    const data = await response.json();
-                    if (data.next_track) {
-                        nextTrackQueued = data.next_track;
-                        console.log('🎵 Next up:', data.next_track.title || data.next_track.name);
-                        console.log('📝 Transition queued on server');
-
-                        // Dispatch event for any listeners
-                        window.dispatchEvent(new CustomEvent('dj-transition', {
-                            detail: {
-                                nextTrack: data.next_track,
-                                remainingSeconds: remaining
-                            }
-                        }));
-                    }
+                    conversation.sendContextualUpdate(`[DJ ALERT: "${trackName}" is ending in about 10 seconds. Pick the next song and announce it!]`);
                 } catch (err) {
-                    console.error('Failed to queue transition:', err);
+                    console.error('Failed to send DJ transition alert:', err);
                 }
             }
         });
 
-        // When track ends, play the queued next track
+        // When track ends, notify agent and wait for next song
         musicPlayer.addEventListener('ended', async () => {
+            const endedTrack = currentTrack ? (currentTrack.title || currentTrack.name) : 'track';
             djTransitionTriggered = false;  // Reset for next track
+            nextTrackQueued = null;
 
-            if (nextTrackQueued) {
-                // Play the pre-queued track
-                currentTrack = nextTrackQueued;
-                trackName.textContent = nextTrackQueued.title || nextTrackQueued.name;
-                musicPlayer.src = `${VISION_SERVER_URL}/music/${nextTrackQueued.filename}`;
-                musicPlayer.play();
-                nextTrackQueued = null;
-                console.log('🎵 Playing queued track:', currentTrack.title || currentTrack.name);
-            } else {
-                // No queued track, fetch next
-                musicControl('next');
+            // Stop playback and reset UI
+            musicPlaying = false;
+            musicButton.classList.remove('playing');
+            playPauseBtn.textContent = '▶';
+            nowPlaying.classList.remove('visible');
+            currentTrack = null;
+
+            // Clear server state
+            try {
+                await fetch(`${VISION_SERVER_URL}/api/music?action=stop`);
+            } catch (err) {
+                console.error('Failed to clear server state:', err);
             }
+
+            // Notify agent that song ended - prompt for next track
+            if (conversation) {
+                try {
+                    console.log(`🎙️ "${endedTrack}" ended - prompting agent for next track`);
+                    conversation.sendContextualUpdate(`[DJ ALERT: "${endedTrack}" just finished! Time to spin up the next track - announce it and play it!]`);
+                } catch (err) {
+                    console.error('Failed to notify agent of track end:', err);
+                }
+            }
+
+            console.log('🎵 Track ended - waiting for agent to play next');
         });
 
         // Duck music volume when Pi-Guy speaks
