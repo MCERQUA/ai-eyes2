@@ -198,12 +198,12 @@ The agent has a secondary "Radio Voice" for his DJ-FoamBot persona. This is conf
 - manage_notes (notes/files) - webhook
 - manage_memory (long-term memory) - webhook
 - manage_jobs (scheduled tasks/cron jobs) - webhook
-- play_music (DJ music controls) - **client** (but frontend handles playback via text detection)
-- dj_soundboard (DJ sound effects) - **client** (sounds play via frontend text detection, NOT tool response)
+- play_music (DJ music controls) - **webhook** (server tracks state, frontend syncs via text detection)
+- dj_soundboard (DJ sound effects) - **client** (but sounds actually play via frontend text detection)
 - end_call (end conversation) - system
 - skip_turn (handle silence) - system
 
-**⚠️ NOTE on DJ tools:** `play_music` and `dj_soundboard` are registered as `type: client` in ElevenLabs, but actual audio playback is handled by the frontend detecting trigger words in Pi-Guy's speech. See the DJ Soundboard section below for details.
+**⚠️ NOTE on audio playback:** Both music and DJ sounds use **text detection** in the frontend to trigger playback. When Pi-Guy says trigger words like "spinning up", "playing", "air horn", etc., the frontend detects them and plays audio. This is more reliable than waiting for tool responses.
 
 ## Overview
 - **Type**: Web app with Python backend
