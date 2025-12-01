@@ -1006,7 +1006,8 @@
             },
 
             duck(shouldDuck) {
-                this.audio.volume = shouldDuck ? this.volume * 0.3 : this.volume;
+                // Duck to 60% when DJ talks (was 30% - too quiet)
+                this.audio.volume = shouldDuck ? this.volume * 0.6 : this.volume;
             },
 
             // Check AI text for music control triggers
@@ -1465,13 +1466,26 @@
             async handleSongTool(toolName, filename) {
                 const musicModule = window.musicPlayer;
 
-                // Play the specific track
+                // Play the specific track with smooth transition
                 try {
                     const url = `${CONFIG.serverUrl}/api/music?action=play&track=${encodeURIComponent(filename)}`;
                     const response = await fetch(url);
                     const data = await response.json();
 
                     if (data.track) {
+                        // Fade out current track quickly if playing
+                        if (musicModule.isPlaying && !musicModule.audio.paused) {
+                            const fadeOut = setInterval(() => {
+                                if (musicModule.audio.volume > 0.1) {
+                                    musicModule.audio.volume -= 0.1;
+                                } else {
+                                    clearInterval(fadeOut);
+                                }
+                            }, 30);
+                            await new Promise(r => setTimeout(r, 150)); // Quick fade
+                        }
+
+                        // Start new track
                         musicModule.audio.src = `${CONFIG.serverUrl}/music/${data.track.filename || filename}`;
                         musicModule.audio.volume = musicModule.volume;
                         await musicModule.audio.play();
@@ -1485,7 +1499,7 @@
 
                         return {
                             success: true,
-                            message: `Now playing: ${data.track.title}`,
+                            message: `Now playing: ${data.track.title}. ${data.track.description || ''} ${data.track.phone_number ? 'Phone: ' + data.track.phone_number : ''}`,
                             track: data.track
                         };
                     }
