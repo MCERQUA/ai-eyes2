@@ -345,9 +345,10 @@
         .now-playing {
             position: fixed;
             bottom: 20px;
-            right: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             background: var(--panel-bg);
-            border: 1px solid var(--orange);
+            border: 1px solid var(--blue);
             padding: 10px 15px;
             border-radius: 10px;
             display: none;
@@ -356,8 +357,8 @@
 
         .now-playing.visible { display: flex; flex-direction: column; gap: 8px; }
 
-        .track-info { display: flex; flex-direction: column; }
-        .track-label { font-size: 10px; color: var(--orange); }
+        .track-info { display: flex; flex-direction: column; text-align: center; }
+        .track-label { font-size: 10px; color: var(--blue); }
         .track-name { font-size: 14px; color: white; }
 
         .music-controls {
@@ -368,18 +369,18 @@
 
         .music-controls button {
             background: none;
-            border: 1px solid var(--orange);
-            color: var(--orange);
+            border: 1px solid var(--blue);
+            color: var(--blue);
             padding: 5px 10px;
             border-radius: 5px;
             cursor: pointer;
         }
 
-        .music-controls button:hover { background: var(--orange); color: white; }
+        .music-controls button:hover { background: var(--blue); color: white; }
 
         .volume-slider {
             width: 100%;
-            accent-color: var(--orange);
+            accent-color: var(--blue);
         }
 
         /* Auth section */
@@ -955,6 +956,7 @@
                 this.audio.pause();
                 this.isPlaying = false;
                 this.button.classList.remove('active');
+                this.nowPlaying.classList.remove('visible');
             },
 
             stop() {
@@ -972,6 +974,7 @@
                     this.audio.play();
                     this.isPlaying = true;
                     this.button.classList.add('active');
+                    this.nowPlaying.classList.add('visible');
                 } else {
                     this.pause();
                 }
