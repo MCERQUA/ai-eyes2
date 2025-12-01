@@ -1692,8 +1692,8 @@
                     console.log(`${isUser ? 'User' : 'AI'}: ${text}`);
                     // Check AI responses for DJ sound and music triggers
                     if (!isUser) {
-                        DJSoundboard.checkTriggers(text);
-                        // Music triggers disabled - DJ uses song tools now
+                        // Text triggers disabled - DJ uses tools now
+                        // DJSoundboard.checkTriggers(text);
                         // MusicModule.checkTriggers(text);
                     }
                 },
