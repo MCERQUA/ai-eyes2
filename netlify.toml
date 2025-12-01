@@ -4,3 +4,11 @@
 # Disable secrets scanning - these are either public keys or not used in frontend
 [build.environment]
   SECRETS_SCAN_ENABLED = "false"
+
+# Headers for CORS and security
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
+    Access-Control-Allow-Headers = "Content-Type"
