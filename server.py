@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Pi-Guy Vision Server
-Handles vision requests from ElevenLabs agent using Gemini Vision API
-Also handles face recognition using DeepFace
-Also handles user usage tracking
+DJ-FoamBot Server (ai-eyes 2.0)
+Voice agent backend using Hume AI EVI for voice, Gemini for vision.
+Also handles face recognition using DeepFace and user usage tracking.
+
+This is the cost-optimized version of Pi-Guy, using Hume instead of ElevenLabs.
 """
 
 import os
@@ -23,8 +24,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import google.generativeai as genai
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (use explicit path to avoid picking up parent .env files)
+env_path = Path(__file__).parent / ".env"
+load_dotenv(env_path, override=True)
 
 app = Flask(__name__)
 CORS(app)
@@ -236,7 +238,7 @@ def receive_frame():
 @app.route('/api/vision', methods=['POST'])
 def vision():
     """
-    ElevenLabs tool endpoint - analyze what the camera sees
+    Hume tool endpoint - analyze what the camera sees
     Called when user says trigger words like "look", "see", "what is this"
     """
     global latest_frame
@@ -281,7 +283,7 @@ Don't mention that you're an AI or that this is an image - just describe what yo
 @app.route('/api/vision', methods=['GET'])
 def vision_get():
     """
-    GET endpoint for ElevenLabs tool integration
+    GET endpoint for Hume tool integration
     """
     global latest_frame
 
@@ -412,7 +414,7 @@ def identify_face():
 
 @app.route('/api/identity', methods=['GET'])
 def get_identity():
-    """Get the currently identified person - used by ElevenLabs identify_person tool"""
+    """Get the currently identified person - used by Hume identify_person tool"""
     global current_identity
     if current_identity and current_identity.get('name') and current_identity['name'] != 'unknown':
         name = current_identity['name']
@@ -635,7 +637,7 @@ def track_usage(user_id):
 def server_status():
     """
     Get current server status - CPU, memory, disk, running processes
-    ElevenLabs tool endpoint for Pi-Guy to check on his server
+    Hume tool endpoint for Pi-Guy to check on his server
     """
     try:
         # System info
@@ -770,7 +772,7 @@ def get_user_id_from_request():
 @app.route('/api/todos', methods=['GET'])
 def handle_todos():
     """
-    All-in-one todo endpoint for ElevenLabs (which uses GET for webhooks)
+    All-in-one todo endpoint for Hume (uses GET for webhooks)
     Query params:
       - user_id (optional - falls back to identified face)
       - task (if provided, ADDS a new todo)
@@ -855,7 +857,7 @@ def handle_todos():
 @app.route('/api/todos', methods=['POST'])
 def add_todo():
     """
-    Add a new todo - ElevenLabs tool endpoint
+    Add a new todo - Hume tool endpoint
     Body: { "user_id": "...", "task": "..." }
     Falls back to identified face if no user_id provided
     """
@@ -885,7 +887,7 @@ def add_todo():
 @app.route('/api/todos/complete', methods=['POST'])
 def complete_todo():
     """
-    Mark a todo as complete - ElevenLabs tool endpoint
+    Mark a todo as complete - Hume tool endpoint
     Body: { "user_id": "...", "task_id": N } or { "user_id": "...", "task_text": "..." }
     Falls back to identified face if no user_id provided
     """
@@ -957,7 +959,7 @@ def delete_todo(todo_id):
 def web_search():
     """
     Search the web using DuckDuckGo (free, no API key needed)
-    ElevenLabs tool endpoint
+    Hume tool endpoint
     Query/Body: { "query": "search terms" }
     """
     if request.method == 'POST':
@@ -1077,7 +1079,7 @@ ALLOWED_COMMANDS = {
 @app.route('/api/command', methods=['GET', 'POST'])
 def run_command():
     """
-    Run a whitelisted server command - ElevenLabs tool endpoint
+    Run a whitelisted server command - Hume tool endpoint
     Query/Body: { "command": "git_status" } - must be from whitelist
     Also accepts natural language and tries to match
     """
@@ -1212,7 +1214,7 @@ def sanitize_filename(name):
 @app.route('/api/notes', methods=['GET'])
 def handle_notes():
     """
-    All-in-one notes endpoint for ElevenLabs (which uses GET for webhooks)
+    All-in-one notes endpoint for Hume (uses GET for webhooks)
     Query params:
       - action: 'list', 'read', 'write', 'append', 'delete'
       - filename: name of the file (for read/write/append/delete)
@@ -1695,7 +1697,7 @@ def execute_job_action(action, params):
 @app.route('/api/jobs', methods=['GET'])
 def handle_jobs():
     """
-    All-in-one jobs endpoint for ElevenLabs tool.
+    All-in-one jobs endpoint for Hume tool.
     Query params:
       - action: 'list', 'schedule', 'cancel', 'status', 'history'
       - name: job name (for schedule)
@@ -1990,97 +1992,28 @@ def list_job_actions():
     })
 
 
-# ===== PI-GUY MEMORY SYSTEM (ElevenLabs Knowledge Base) =====
+# ===== DJ-FOAMBOT MEMORY SYSTEM (Local JSON Storage) =====
 
-ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
-ELEVENLABS_AGENT_ID = os.getenv('ELEVENLABS_AGENT_ID', 'agent_0801kb2240vcea2ayx0a2qxmheha')
-ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1/convai"
-MEMORY_FILE = Path(__file__).parent / "memory_docs.json"
+MEMORY_FILE = Path(__file__).parent / "memories.json"
 
-def load_memory_docs():
-    """Load mapping of memory names to ElevenLabs document IDs"""
+def load_memories():
+    """Load all memories from local JSON file"""
     if MEMORY_FILE.exists():
         with open(MEMORY_FILE) as f:
             return json.load(f)
     return {}
 
-def save_memory_docs(docs):
-    """Save memory document mapping"""
+def save_memories(memories):
+    """Save memories to local JSON file"""
     with open(MEMORY_FILE, 'w') as f:
-        json.dump(docs, f, indent=2)
-
-def elevenlabs_headers():
-    """Get headers for ElevenLabs API requests"""
-    return {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json"
-    }
-
-def create_knowledge_doc(name, content):
-    """Create a new knowledge base document in ElevenLabs"""
-    url = f"{ELEVENLABS_BASE_URL}/knowledge-base/text"
-    response = requests.post(url, headers=elevenlabs_headers(), json={
-        "text": content,
-        "name": name
-    })
-    response.raise_for_status()
-    return response.json()
-
-def delete_knowledge_doc(doc_id):
-    """Delete a knowledge base document from ElevenLabs"""
-    url = f"{ELEVENLABS_BASE_URL}/knowledge-base/{doc_id}"
-    response = requests.delete(url, headers=elevenlabs_headers(), params={"force": "true"})
-    response.raise_for_status()
-    return response.json() if response.text else {"deleted": True}
-
-def get_knowledge_doc(doc_id):
-    """Get a knowledge base document from ElevenLabs"""
-    url = f"{ELEVENLABS_BASE_URL}/knowledge-base/{doc_id}"
-    response = requests.get(url, headers=elevenlabs_headers())
-    response.raise_for_status()
-    return response.json()
-
-def list_knowledge_docs():
-    """List all knowledge base documents"""
-    url = f"{ELEVENLABS_BASE_URL}/knowledge-base"
-    response = requests.get(url, headers=elevenlabs_headers(), params={"page_size": 100})
-    response.raise_for_status()
-    return response.json()
-
-def update_agent_knowledge_base(doc_ids):
-    """Update the agent's knowledge base with document IDs"""
-    url = f"{ELEVENLABS_BASE_URL}/agents/{ELEVENLABS_AGENT_ID}"
-
-    # Build knowledge base array
-    knowledge_base = []
-    memory_docs = load_memory_docs()
-
-    for doc_id in doc_ids:
-        # Find the name for this doc_id
-        name = next((k for k, v in memory_docs.items() if v == doc_id), doc_id)
-        knowledge_base.append({
-            "type": "text",
-            "name": name,
-            "id": doc_id,
-            "usage_mode": "auto"  # Use RAG for retrieval
-        })
-
-    response = requests.patch(url, headers=elevenlabs_headers(), json={
-        "conversation_config": {
-            "agent": {
-                "prompt": {
-                    "knowledge_base": knowledge_base
-                }
-            }
-        }
-    })
-    response.raise_for_status()
-    return response.json()
+        json.dump(memories, f, indent=2)
 
 @app.route('/api/memory', methods=['GET'])
 def handle_memory():
     """
-    All-in-one memory endpoint for ElevenLabs tool
+    All-in-one memory endpoint for Hume tool
+    Uses local JSON storage for persistence.
+
     Query params:
       - action: 'list', 'read', 'remember', 'forget', 'search'
       - name: memory name (for read/remember/forget)
@@ -2092,29 +2025,23 @@ def handle_memory():
     content = request.args.get('content', '')
     search_term = request.args.get('search', '')
 
-    if not ELEVENLABS_API_KEY:
-        return jsonify({
-            "error": "ElevenLabs API key not configured",
-            "response": "My memory system isn't set up. The API key is missing."
-        }), 500
-
     try:
-        memory_docs = load_memory_docs()
+        memories = load_memories()
 
         # LIST all memories
         if action == 'list':
-            if not memory_docs:
+            if not memories:
                 return jsonify({
                     "memories": [],
                     "count": 0,
                     "response": "I don't have any memories stored yet. Tell me to remember something!"
                 })
 
-            memories = list(memory_docs.keys())
+            memory_names = list(memories.keys())
             return jsonify({
-                "memories": memories,
-                "count": len(memories),
-                "response": f"I remember {len(memories)} thing{'s' if len(memories) != 1 else ''}: {', '.join(memories)}"
+                "memories": memory_names,
+                "count": len(memory_names),
+                "response": f"I remember {len(memory_names)} thing{'s' if len(memory_names) != 1 else ''}: {', '.join(memory_names)}"
             })
 
         # READ a specific memory
@@ -2125,7 +2052,7 @@ def handle_memory():
             # Fuzzy match
             matched_name = None
             name_lower = name.lower()
-            for mem_name in memory_docs.keys():
+            for mem_name in memories.keys():
                 if name_lower in mem_name.lower() or mem_name.lower() in name_lower:
                     matched_name = mem_name
                     break
@@ -2136,15 +2063,14 @@ def handle_memory():
                     "response": f"I don't remember anything called '{name}'. Use 'list memories' to see what I know."
                 })
 
-            doc_id = memory_docs[matched_name]
-            doc = get_knowledge_doc(doc_id)
-            # Content can be in 'extracted_inner_html' (for text docs) or 'text' or 'content'
-            content = doc.get('extracted_inner_html', doc.get('text', doc.get('content', 'Content not available')))
+            memory_content = memories[matched_name].get('content', '')
+            created_at = memories[matched_name].get('created_at', 'Unknown')
 
             return jsonify({
                 "name": matched_name,
-                "content": content,
-                "response": f"Here's what I remember about '{matched_name}':\n\n{content[:500]}{'...' if len(str(content)) > 500 else ''}"
+                "content": memory_content,
+                "created_at": created_at,
+                "response": f"Here's what I remember about '{matched_name}':\n\n{memory_content[:500]}{'...' if len(str(memory_content)) > 500 else ''}"
             })
 
         # REMEMBER something new
@@ -2154,27 +2080,16 @@ def handle_memory():
             if not content:
                 return jsonify({"error": "content required", "response": "What do you want me to remember?"})
 
-            # If memory exists, delete old one first
-            if name in memory_docs:
-                try:
-                    delete_knowledge_doc(memory_docs[name])
-                except:
-                    pass  # Ignore deletion errors
-
-            # Create new knowledge doc
-            doc = create_knowledge_doc(name, content)
-            doc_id = doc['id']
-
-            # Save mapping
-            memory_docs[name] = doc_id
-            save_memory_docs(memory_docs)
-
-            # Update agent's knowledge base
-            update_agent_knowledge_base(list(memory_docs.values()))
+            # Store the memory
+            memories[name] = {
+                "content": content,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat()
+            }
+            save_memories(memories)
 
             return jsonify({
                 "name": name,
-                "doc_id": doc_id,
                 "response": f"Got it! I'll remember '{name}'. This is now part of my knowledge."
             })
 
@@ -2186,7 +2101,7 @@ def handle_memory():
             # Fuzzy match
             matched_name = None
             name_lower = name.lower()
-            for mem_name in memory_docs.keys():
+            for mem_name in memories.keys():
                 if name_lower in mem_name.lower() or mem_name.lower() in name_lower:
                     matched_name = mem_name
                     break
@@ -2197,16 +2112,9 @@ def handle_memory():
                     "response": f"I don't have a memory called '{name}' to forget."
                 })
 
-            # Delete from ElevenLabs
-            doc_id = memory_docs[matched_name]
-            delete_knowledge_doc(doc_id)
-
-            # Remove from local mapping
-            del memory_docs[matched_name]
-            save_memory_docs(memory_docs)
-
-            # Update agent's knowledge base
-            update_agent_knowledge_base(list(memory_docs.values()))
+            # Delete the memory
+            del memories[matched_name]
+            save_memories(memories)
 
             return jsonify({
                 "name": matched_name,
@@ -2214,26 +2122,22 @@ def handle_memory():
                 "response": f"Done. I've forgotten '{matched_name}'. It's gone from my memory."
             })
 
-        # SEARCH memories (queries the knowledge base)
+        # SEARCH memories
         elif action == 'search':
             if not search_term:
                 search_term = content or name
             if not search_term:
                 return jsonify({"error": "search term required", "response": "What are you looking for in my memories?"})
 
-            # List all docs and search through them
+            # Search through memories
             results = []
-            for mem_name, doc_id in memory_docs.items():
-                try:
-                    doc = get_knowledge_doc(doc_id)
-                    text = doc.get('extracted_inner_html', doc.get('text', doc.get('content', '')))
-                    if search_term.lower() in text.lower() or search_term.lower() in mem_name.lower():
-                        results.append({
-                            "name": mem_name,
-                            "preview": text[:200] if text else "No content"
-                        })
-                except:
-                    continue
+            for mem_name, mem_data in memories.items():
+                mem_content = mem_data.get('content', '')
+                if search_term.lower() in mem_content.lower() or search_term.lower() in mem_name.lower():
+                    results.append({
+                        "name": mem_name,
+                        "preview": mem_content[:200] if mem_content else "No content"
+                    })
 
             if not results:
                 return jsonify({
@@ -2253,13 +2157,6 @@ def handle_memory():
                 "response": f"Unknown action '{action}'. Use: list, read, remember, forget, or search."
             })
 
-    except requests.exceptions.HTTPError as e:
-        print(f"Memory API error: {e}")
-        print(f"Response: {e.response.text if e.response else 'No response'}")
-        return jsonify({
-            "error": str(e),
-            "response": f"My memory system had an error: {str(e)}"
-        }), 500
     except Exception as e:
         print(f"Memory error: {e}")
         return jsonify({
@@ -2267,52 +2164,48 @@ def handle_memory():
             "response": f"Something went wrong with my memory: {str(e)}"
         }), 500
 
-@app.route('/api/memory/sync', methods=['POST'])
-def sync_memory():
-    """Sync local memory docs with ElevenLabs knowledge base"""
+@app.route('/api/memory/export', methods=['GET'])
+def export_memories():
+    """Export all memories as JSON (for backup)"""
     try:
-        # Get all docs from ElevenLabs
-        response = list_knowledge_docs()
-        el_docs = {doc['name']: doc['id'] for doc in response.get('documents', [])}
-
-        # Load local mapping
-        memory_docs = load_memory_docs()
-
-        # Find orphaned local entries (doc no longer exists in ElevenLabs)
-        orphans = []
-        for name, doc_id in list(memory_docs.items()):
-            if doc_id not in [d['id'] for d in response.get('documents', [])]:
-                orphans.append(name)
-                del memory_docs[name]
-
-        # Save cleaned mapping
-        save_memory_docs(memory_docs)
-
-        # Update agent with current docs
-        if memory_docs:
-            update_agent_knowledge_base(list(memory_docs.values()))
-
+        memories = load_memories()
         return jsonify({
-            "synced": True,
-            "total_docs": len(el_docs),
-            "local_memories": len(memory_docs),
-            "orphans_removed": orphans,
-            "response": f"Memory synced. {len(memory_docs)} memories active, {len(orphans)} orphans cleaned up."
+            "memories": memories,
+            "count": len(memories),
+            "exported_at": datetime.now().isoformat()
         })
-
     except Exception as e:
-        print(f"Memory sync error: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/memory/list-all', methods=['GET'])
-def list_all_knowledge():
-    """List ALL knowledge base documents in ElevenLabs (for debugging)"""
+@app.route('/api/memory/import', methods=['POST'])
+def import_memories():
+    """Import memories from JSON (for restore)"""
     try:
-        response = list_knowledge_docs()
-        docs = response.get('documents', [])
+        data = request.get_json()
+        if not data or 'memories' not in data:
+            return jsonify({"error": "No memories data provided"}), 400
+
+        # Merge with existing memories
+        memories = load_memories()
+        imported = data['memories']
+
+        for name, content in imported.items():
+            if isinstance(content, dict):
+                memories[name] = content
+            else:
+                # Handle simple string format
+                memories[name] = {
+                    "content": content,
+                    "created_at": datetime.now().isoformat(),
+                    "imported": True
+                }
+
+        save_memories(memories)
+
         return jsonify({
-            "documents": docs,
-            "count": len(docs)
+            "imported": len(imported),
+            "total": len(memories),
+            "response": f"Imported {len(imported)} memories. Total: {len(memories)}"
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2454,7 +2347,7 @@ def serve_music_file(filename):
 @app.route('/api/music', methods=['GET'])
 def handle_music():
     """
-    All-in-one music endpoint for ElevenLabs tool (DJ Pi-Guy!)
+    All-in-one music endpoint for Hume tool (DJ Pi-Guy!)
     Query params:
       - action: 'list', 'play', 'pause', 'stop', 'skip', 'volume', 'status', 'queue', 'shuffle'
       - track: track name or filename (for play)
@@ -3037,7 +2930,7 @@ def serve_sound(filename):
 @app.route('/api/dj-sound', methods=['GET'])
 def handle_dj_sound():
     """
-    DJ Soundboard endpoint for ElevenLabs tool
+    DJ Soundboard endpoint for Hume tool
     Query params:
       - action: 'list' or 'play'
       - sound: sound name (e.g., 'air_horn', 'scratch', 'siren_rise')
