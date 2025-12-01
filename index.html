@@ -856,7 +856,57 @@
             volumeSlider: document.getElementById('volume-slider'),
             isPlaying: false,
             currentTrack: null,
+            currentMetadata: null,
             volume: 0.85,
+            metadata: null,  // Will be loaded from server
+
+            // Text triggers for AI control
+            playTriggers: ['spinning up', 'playing now', 'here comes', 'drop the beat', 'hit it', 'music time', 'lets play', "let's play", 'start the music', 'cue the music'],
+            stopTriggers: ['stop the music', 'cut the music', 'kill the music', 'silence', 'music off', 'enough music'],
+            skipTriggers: ['next track', 'skip this', 'next song', 'switch it up', 'something else', 'different song'],
+            volumeUpTriggers: ['turn it up', 'louder', 'crank it', 'pump it up'],
+            volumeDownTriggers: ['turn it down', 'quieter', 'lower the volume', 'too loud'],
+
+            // Track name triggers - AI can request specific tracks
+            trackTriggers: {
+                'mrs sprayfoam': 'Call-Me-Mrs.Sprayfoam.mp3',
+                'mrs. sprayfoam': 'Call-Me-Mrs.Sprayfoam.mp3',
+                'karen': 'Call-Me-Mrs.Sprayfoam.mp3',
+                'augusta': 'Call-Me-Mrs.Sprayfoam.mp3',
+                'foam it': 'Foam-It-we-insulate-you-right.mp3',
+                'foamit': 'Foam-It-we-insulate-you-right.mp3',
+                'moe': 'Foam-It-we-insulate-you-right.mp3',
+                'toronto': 'Foam-It-we-insulate-you-right.mp3',
+                'mississauga': 'Foam-It-we-insulate-you-right.mp3',
+                'foam everything': 'Foam-Everything.mp3',
+                'hey diddle': 'Hey-Diddle-Diddle.mp3',
+                'diddle diddle': 'Hey-Diddle-Diddle.mp3',
+                'nursery rhyme': 'Hey-Diddle-Diddle.mp3',
+                'polyurethane gang': 'Polyurethane-Gang.mp3',
+                'og polyurethane': 'OG-Polyurthane-gang.mp3',
+                'espuma': 'Espuma-Calidez-2.mp3',
+                'spanish': 'Spanish-ComfyLife.mp3',
+                'comfy life': 'Spanish-ComfyLife.mp3'
+            },
+
+            async init() {
+                // Load metadata from server
+                try {
+                    const response = await fetch(`${CONFIG.serverUrl}/api/music?action=list`);
+                    const data = await response.json();
+                    this.metadata = data.tracks || {};
+                    console.log('Music metadata loaded:', Object.keys(this.metadata).length, 'tracks');
+                } catch (error) {
+                    console.error('Failed to load music metadata:', error);
+                    this.metadata = {};
+                }
+
+                // Auto-play next track when current ends
+                this.audio.addEventListener('ended', () => {
+                    console.log('Track ended, playing next...');
+                    this.next();
+                });
+            },
 
             toggle() {
                 if (this.isPlaying) {
@@ -881,9 +931,11 @@
                         await this.audio.play();
                         this.isPlaying = true;
                         this.currentTrack = data.track;
+                        this.currentMetadata = data;
                         this.button.classList.add('active');
                         this.nowPlaying.classList.add('visible');
                         this.trackName.textContent = data.title || data.track;
+                        console.log('Now playing:', data.title, data);
                     }
                 } catch (error) {
                     console.error('Music play error:', error);
@@ -894,6 +946,16 @@
                 this.audio.pause();
                 this.isPlaying = false;
                 this.button.classList.remove('active');
+            },
+
+            stop() {
+                this.audio.pause();
+                this.audio.currentTime = 0;
+                this.isPlaying = false;
+                this.currentTrack = null;
+                this.currentMetadata = null;
+                this.button.classList.remove('active');
+                this.nowPlaying.classList.remove('visible');
             },
 
             togglePlay() {
@@ -911,7 +973,6 @@
             },
 
             prev() {
-                // Could implement track history
                 this.play();
             },
 
@@ -920,8 +981,109 @@
                 this.audio.volume = this.volume;
             },
 
+            volumeUp() {
+                this.volume = Math.min(1, this.volume + 0.15);
+                this.audio.volume = this.volume;
+                this.volumeSlider.value = this.volume * 100;
+            },
+
+            volumeDown() {
+                this.volume = Math.max(0, this.volume - 0.15);
+                this.audio.volume = this.volume;
+                this.volumeSlider.value = this.volume * 100;
+            },
+
             duck(shouldDuck) {
                 this.audio.volume = shouldDuck ? this.volume * 0.3 : this.volume;
+            },
+
+            // Check AI text for music control triggers
+            checkTriggers(text) {
+                if (!text) return null;
+                const lowerText = text.toLowerCase();
+                let action = null;
+
+                // Check for specific track requests first
+                for (const [trigger, trackFile] of Object.entries(this.trackTriggers)) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: specific track', trigger, '->', trackFile);
+                        this.play(trackFile);
+                        action = 'play_specific';
+                        return action;
+                    }
+                }
+
+                // Check for play triggers
+                for (const trigger of this.playTriggers) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: play');
+                        if (!this.isPlaying) this.play();
+                        action = 'play';
+                        return action;
+                    }
+                }
+
+                // Check for stop triggers
+                for (const trigger of this.stopTriggers) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: stop');
+                        this.stop();
+                        action = 'stop';
+                        return action;
+                    }
+                }
+
+                // Check for skip triggers
+                for (const trigger of this.skipTriggers) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: skip');
+                        this.next();
+                        action = 'skip';
+                        return action;
+                    }
+                }
+
+                // Check for volume up
+                for (const trigger of this.volumeUpTriggers) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: volume up');
+                        this.volumeUp();
+                        action = 'volume_up';
+                        return action;
+                    }
+                }
+
+                // Check for volume down
+                for (const trigger of this.volumeDownTriggers) {
+                    if (lowerText.includes(trigger)) {
+                        console.log('Music trigger: volume down');
+                        this.volumeDown();
+                        action = 'volume_down';
+                        return action;
+                    }
+                }
+
+                return action;
+            },
+
+            // Get current track info for AI context
+            getCurrentTrackInfo() {
+                if (!this.currentMetadata) return null;
+                return {
+                    title: this.currentMetadata.title,
+                    artist: this.currentMetadata.artist,
+                    description: this.currentMetadata.description,
+                    phone: this.currentMetadata.phone_number,
+                    djHints: this.currentMetadata.dj_intro_hints
+                };
+            },
+
+            // Get list of available tracks for AI prompt
+            getTrackList() {
+                if (!this.metadata) return 'No tracks loaded';
+                return Object.entries(this.metadata).map(([file, info]) => {
+                    return `- "${info.title}" (say "${Object.entries(this.trackTriggers).find(([k,v]) => v === file)?.[0] || file}")`;
+                }).join('\n');
             }
         };
 
@@ -1146,6 +1308,11 @@
                         this.isPlayingAudio = false;
                         break;
 
+                    case 'tool_call':
+                        // Handle tool calls from the AI
+                        this.handleToolCall(message);
+                        break;
+
                     case 'error':
                         this.callbacks.onError(message.message || 'Unknown error');
                         break;
@@ -1234,6 +1401,144 @@
                 }
                 return bytes.buffer;
             }
+
+            async handleToolCall(message) {
+                const toolName = message.name;
+                const toolCallId = message.tool_call_id;
+                const parameters = JSON.parse(message.parameters || '{}');
+
+                console.log('Tool call:', toolName, parameters);
+
+                let result = { success: false, error: 'Unknown tool' };
+
+                try {
+                    switch (toolName) {
+                        case 'play_music':
+                            result = await this.handleMusicTool(parameters);
+                            break;
+                        case 'dj_soundboard':
+                            result = this.handleSoundboardTool(parameters);
+                            break;
+                        case 'look_and_see':
+                            result = await this.handleVisionTool(parameters);
+                            break;
+                        default:
+                            result = { success: false, error: `Unknown tool: ${toolName}` };
+                    }
+                } catch (error) {
+                    result = { success: false, error: error.message };
+                }
+
+                // Send tool response back to Hume
+                this.sendToolResponse(toolCallId, result);
+            }
+
+            async handleMusicTool(params) {
+                const action = params.action || 'status';
+                const musicModule = window.musicPlayer;
+
+                switch (action) {
+                    case 'list':
+                        const tracks = musicModule.metadata || {};
+                        return {
+                            success: true,
+                            tracks: Object.entries(tracks).map(([file, info]) => ({
+                                file,
+                                title: info.title,
+                                artist: info.artist,
+                                description: info.description
+                            }))
+                        };
+                    case 'play':
+                        await musicModule.play(params.track);
+                        return {
+                            success: true,
+                            message: `Now playing: ${musicModule.currentMetadata?.title || params.track || 'random track'}`,
+                            track: musicModule.currentMetadata
+                        };
+                    case 'pause':
+                        musicModule.pause();
+                        return { success: true, message: 'Music paused' };
+                    case 'stop':
+                        musicModule.stop();
+                        return { success: true, message: 'Music stopped' };
+                    case 'skip':
+                        await musicModule.next();
+                        return {
+                            success: true,
+                            message: `Skipped to: ${musicModule.currentMetadata?.title || 'next track'}`,
+                            track: musicModule.currentMetadata
+                        };
+                    case 'volume':
+                        musicModule.setVolume(params.volume || 80);
+                        return { success: true, message: `Volume set to ${params.volume}%` };
+                    case 'status':
+                        return {
+                            success: true,
+                            isPlaying: musicModule.isPlaying,
+                            track: musicModule.currentMetadata,
+                            volume: Math.round(musicModule.volume * 100)
+                        };
+                    default:
+                        return { success: false, error: `Unknown music action: ${action}` };
+                }
+            }
+
+            handleSoundboardTool(params) {
+                const sound = params.sound;
+                if (sound) {
+                    DJSoundboard.play(sound);
+                    return { success: true, message: `Playing sound: ${sound}` };
+                }
+                return { success: false, error: 'No sound specified' };
+            }
+
+            async handleVisionTool(params) {
+                const camera = window.cameraModule;
+                if (!camera.stream) {
+                    return { success: false, error: 'Camera is not active. Please turn on the camera first.' };
+                }
+
+                try {
+                    // Capture frame and send to server for analysis
+                    const canvas = camera.canvas;
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 640;
+                    canvas.height = 480;
+                    ctx.drawImage(camera.video, 0, 0, 640, 480);
+
+                    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+
+                    const response = await fetch(`${this.config.serverUrl}/api/vision`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            image: imageData,
+                            prompt: params.prompt || 'Describe what you see'
+                        })
+                    });
+
+                    const data = await response.json();
+                    return {
+                        success: true,
+                        description: data.description || data.response || 'Unable to analyze image'
+                    };
+                } catch (error) {
+                    return { success: false, error: `Vision error: ${error.message}` };
+                }
+            }
+
+            sendToolResponse(toolCallId, result) {
+                if (this.socket?.readyState === WebSocket.OPEN) {
+                    const response = {
+                        type: 'tool_response',
+                        tool_call_id: toolCallId,
+                        content: JSON.stringify(result)
+                    };
+                    this.socket.send(JSON.stringify(response));
+                    console.log('Tool response sent:', toolCallId, result);
+                }
+            }
         }
 
         // ===== MAIN INITIALIZATION =====
@@ -1244,6 +1549,7 @@
             WaveformModule.init();
             FaceModule.startRandomBehavior();
             DJSoundboard.init();
+            await MusicModule.init();
             await AuthModule.init();
 
             // Create voice adapter based on config
@@ -1282,9 +1588,10 @@
                 },
                 onTranscript: (text, isUser) => {
                     console.log(`${isUser ? 'User' : 'AI'}: ${text}`);
-                    // Check AI responses for DJ sound triggers
+                    // Check AI responses for DJ sound and music triggers
                     if (!isUser) {
                         DJSoundboard.checkTriggers(text);
+                        MusicModule.checkTriggers(text);
                     }
                 },
                 onError: (error) => {
