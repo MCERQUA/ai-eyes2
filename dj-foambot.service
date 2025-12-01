@@ -1,0 +1,16 @@
+[Unit]
+Description=DJ-FoamBot Voice Server (ai-eyes 2.0)
+After=network.target
+
+[Service]
+Type=simple
+User=mike
+WorkingDirectory=/home/mike/Mike-AI/ai-eyes2
+ExecStart=/usr/bin/python3 /home/mike/Mike-AI/ai-eyes2/server.py
+Restart=always
+RestartSec=10
+Environment=PATH=/usr/bin:/usr/local/bin
+EnvironmentFile=/home/mike/Mike-AI/ai-eyes2/.env
+
+[Install]
+WantedBy=multi-user.target
