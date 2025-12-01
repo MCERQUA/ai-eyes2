@@ -1424,18 +1424,35 @@
                 let result = { success: false, error: 'Unknown tool' };
 
                 try {
-                    switch (toolName) {
-                        case 'play_music':
-                            result = await this.handleMusicTool(parameters);
-                            break;
-                        case 'dj_soundboard':
-                            result = this.handleSoundboardTool(parameters);
-                            break;
-                        case 'look_and_see':
-                            result = await this.handleVisionTool(parameters);
-                            break;
-                        default:
-                            result = { success: false, error: `Unknown tool: ${toolName}` };
+                    // Map song tool names to track files
+                    const songTools = {
+                        'play_mrs_sprayfoam': 'Call-Me-Mrs.Sprayfoam.mp3',
+                        'play_foam_it': 'Foam-It-we-insulate-you-right.mp3',
+                        'play_foam_everything': 'Foam-Everything.mp3',
+                        'play_espuma': 'Espuma-Calidez-2.mp3',
+                        'play_hey_diddle': 'Hey-Diddle-Diddle.mp3',
+                        'play_og_polyurethane': 'OG-Polyurthane-gang.mp3',
+                        'play_polyurethane_gang': 'Polyurethane-Gang.mp3',
+                        'play_comfy_life': 'Spanish-ComfyLife.mp3'
+                    };
+
+                    if (songTools[toolName]) {
+                        // Individual song tool - play that specific track
+                        result = await this.handleSongTool(toolName, songTools[toolName]);
+                    } else {
+                        switch (toolName) {
+                            case 'play_music':
+                                result = await this.handleMusicTool(parameters);
+                                break;
+                            case 'dj_soundboard':
+                                result = this.handleSoundboardTool(parameters);
+                                break;
+                            case 'look_and_see':
+                                result = await this.handleVisionTool(parameters);
+                                break;
+                            default:
+                                result = { success: false, error: `Unknown tool: ${toolName}` };
+                        }
                     }
                 } catch (error) {
                     result = { success: false, error: error.message };
@@ -1443,6 +1460,40 @@
 
                 // Send tool response back to Hume
                 this.sendToolResponse(toolCallId, result);
+            }
+
+            async handleSongTool(toolName, filename) {
+                const musicModule = window.musicPlayer;
+
+                // Play the specific track
+                try {
+                    const url = `${CONFIG.serverUrl}/api/music?action=play&track=${encodeURIComponent(filename)}`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.track) {
+                        musicModule.audio.src = `${CONFIG.serverUrl}/music/${data.track.filename || filename}`;
+                        musicModule.audio.volume = musicModule.volume;
+                        await musicModule.audio.play();
+                        musicModule.isPlaying = true;
+                        musicModule.currentTrack = filename;
+                        musicModule.currentMetadata = data.track;
+                        musicModule.button.classList.add('active');
+                        musicModule.nowPlaying.classList.add('visible');
+                        musicModule.trackName.textContent = data.track.title || filename;
+                        console.log('Song tool playing:', data.track.title);
+
+                        return {
+                            success: true,
+                            message: `Now playing: ${data.track.title}`,
+                            track: data.track
+                        };
+                    }
+                } catch (error) {
+                    console.error('Song tool error:', error);
+                }
+
+                return { success: false, error: 'Failed to play track' };
             }
 
             async handleMusicTool(params) {
