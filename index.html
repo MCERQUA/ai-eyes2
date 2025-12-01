@@ -1006,8 +1006,8 @@
             },
 
             duck(shouldDuck) {
-                // Duck to 60% when DJ talks (was 30% - too quiet)
-                this.audio.volume = shouldDuck ? this.volume * 0.6 : this.volume;
+                // Duck to 40% when DJ talks
+                this.audio.volume = shouldDuck ? this.volume * 0.4 : this.volume;
             },
 
             // Check AI text for music control triggers
