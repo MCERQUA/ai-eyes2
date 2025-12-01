@@ -5,7 +5,7 @@
 ## Current Configuration
 
 ### Hume AI Setup
-- **Config ID**: `3c824978-efa3-40df-bac2-023127b30e31` (version 16)
+- **Config ID**: `3c824978-efa3-40df-bac2-023127b30e31` (version 22)
 - **Voice**: DJ-FoamBot custom cloned voice (`bdcf156c-6678-4720-9f91-46bf8063bd7f`)
 - **LLM**: Claude Sonnet 4 (via Hume)
 
