@@ -588,7 +588,7 @@
                 }
 
                 audio.currentTime = 0;
-                audio.volume = 0.55;  // Lower volume so voice is still audible
+                audio.volume = 0.4;  // Lower volume so voice is still audible
                 audio.play().catch(e => console.error('Sound play error:', e));
                 console.log('🎧 DJ Sound:', soundName);
             },
@@ -1372,10 +1372,14 @@
             async playNextAudio() {
                 if (this.audioQueue.length === 0) {
                     this.isPlayingAudio = false;
+                    // Unduck music when done speaking
+                    this.callbacks.onListening();
                     return;
                 }
 
                 this.isPlayingAudio = true;
+                // Duck music when starting to speak
+                this.callbacks.onSpeaking();
                 const base64Data = this.audioQueue.shift();
 
                 try {
