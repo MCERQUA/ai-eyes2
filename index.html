@@ -1437,9 +1437,24 @@
                         'play_comfy_life': 'Spanish-ComfyLife.mp3'
                     };
 
+                    // Map sound tool names to sound files
+                    const soundTools = {
+                        'play_airhorn': 'air_horn',
+                        'play_scratch': 'scratch_long',
+                        'play_rewind': 'rewind',
+                        'play_crowd_cheer': 'crowd_cheer',
+                        'play_yeah': 'yeah',
+                        'play_lets_go': 'lets_go',
+                        'play_sad_trombone': 'sad_trombone'
+                    };
+
                     if (songTools[toolName]) {
                         // Individual song tool - play that specific track
                         result = await this.handleSongTool(toolName, songTools[toolName]);
+                    } else if (soundTools[toolName]) {
+                        // Individual sound tool - play that sound effect
+                        DJSoundboard.play(soundTools[toolName]);
+                        result = { success: true, message: `Sound played: ${toolName.replace('play_', '')}` };
                     } else {
                         switch (toolName) {
                             case 'play_music':
