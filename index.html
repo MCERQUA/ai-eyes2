@@ -934,16 +934,17 @@
                     const data = await response.json();
 
                     if (data.track) {
-                        this.audio.src = `${CONFIG.serverUrl}/music/${data.track}`;
+                        const filename = data.track.filename || data.track;
+                        this.audio.src = `${CONFIG.serverUrl}/music/${filename}`;
                         this.audio.volume = this.volume;
                         await this.audio.play();
                         this.isPlaying = true;
-                        this.currentTrack = data.track;
-                        this.currentMetadata = data;
+                        this.currentTrack = filename;
+                        this.currentMetadata = data.track;
                         this.button.classList.add('active');
                         this.nowPlaying.classList.add('visible');
-                        this.trackName.textContent = data.title || data.track;
-                        console.log('Now playing:', data.title, data);
+                        this.trackName.textContent = data.track.title || filename;
+                        console.log('Now playing:', data.track.title, data.track);
                     }
                 } catch (error) {
                     console.error('Music play error:', error);
