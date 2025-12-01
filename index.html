@@ -890,22 +890,30 @@
             },
 
             async init() {
-                // Load metadata from server
-                try {
-                    const response = await fetch(`${CONFIG.serverUrl}/api/music?action=list`);
-                    const data = await response.json();
-                    this.metadata = data.tracks || {};
-                    console.log('Music metadata loaded:', Object.keys(this.metadata).length, 'tracks');
-                } catch (error) {
-                    console.error('Failed to load music metadata:', error);
-                    this.metadata = {};
-                }
+                console.log('MusicModule initializing...');
+
+                // Load metadata from server (non-blocking)
+                this.loadMetadata();
 
                 // Auto-play next track when current ends
                 this.audio.addEventListener('ended', () => {
                     console.log('Track ended, playing next...');
                     this.next();
                 });
+
+                console.log('MusicModule ready');
+            },
+
+            async loadMetadata() {
+                try {
+                    const response = await fetch(`${CONFIG.serverUrl}/api/music?action=list`);
+                    const data = await response.json();
+                    this.metadata = data.tracks || [];
+                    console.log('Music metadata loaded:', this.metadata.length, 'tracks');
+                } catch (error) {
+                    console.warn('Failed to load music metadata:', error);
+                    this.metadata = [];
+                }
             },
 
             toggle() {
