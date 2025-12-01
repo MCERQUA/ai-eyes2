@@ -1463,10 +1463,13 @@
                         };
                     case 'play':
                         await musicModule.play(params.track);
+                        // Small delay to ensure metadata is set
+                        await new Promise(r => setTimeout(r, 100));
+                        const playingTrack = musicModule.currentMetadata;
                         return {
                             success: true,
-                            message: `Now playing: ${musicModule.currentMetadata?.title || params.track || 'random track'}`,
-                            track: musicModule.currentMetadata
+                            message: `Now playing: ${playingTrack?.title || 'a track'}. ${playingTrack?.description || ''} ${playingTrack?.phone_number ? 'Call ' + playingTrack.phone_number : ''}`,
+                            track: playingTrack
                         };
                     case 'pause':
                         musicModule.pause();
@@ -1476,10 +1479,13 @@
                         return { success: true, message: 'Music stopped' };
                     case 'skip':
                         await musicModule.next();
+                        // Small delay to ensure metadata is set
+                        await new Promise(r => setTimeout(r, 100));
+                        const skippedToTrack = musicModule.currentMetadata;
                         return {
                             success: true,
-                            message: `Skipped to: ${musicModule.currentMetadata?.title || 'next track'}`,
-                            track: musicModule.currentMetadata
+                            message: `Now playing: ${skippedToTrack?.title || 'next track'}. ${skippedToTrack?.description || ''}`,
+                            track: skippedToTrack
                         };
                     case 'volume':
                         musicModule.setVolume(params.volume || 80);

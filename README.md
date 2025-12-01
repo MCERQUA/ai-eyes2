@@ -1,138 +1,138 @@
-# Pi-Guy Voice Agent 2.0
+# DJ-FoamBot - SprayFoam Radio AI DJ
 
-> **This is ai-eyes 2.0** - A cost-optimized fork of the original [ai-eyes](https://github.com/MCERQUA/AI-eyes) project. This version replaces ElevenLabs with alternative TTS/STT services to reduce operational costs while maintaining the same functionality.
+> **ai-eyes 2.0** - Now powered by **Hume AI** for voice conversations. The legendary AI radio host for SprayFoamRadio.com!
 
-An interactive AI voice agent with an animated sci-fi face. Pi-Guy can see through your camera, recognize faces, manage todos, search the web, run server commands, take notes, remember things permanently, and schedule jobs.
+An AI DJ with an animated face, powered by Hume EVI (Empathic Voice Interface) with Gemini Vision capabilities.
 
-![Pi-Guy](https://img.shields.io/badge/Pi--Guy-AI%20Voice%20Agent%202.0-blue)
-![Cost Optimized](https://img.shields.io/badge/Cost-Optimized-green)
+![DJ-FoamBot](https://img.shields.io/badge/DJ--FoamBot-SprayFoam%20Radio-blue)
+![Hume AI](https://img.shields.io/badge/Voice-Hume%20AI-purple)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
-## What's Different in 2.0?
+## What is DJ-FoamBot?
 
-| Feature | Original (ai-eyes) | 2.0 (ai-eyes2) |
-|---------|-------------------|----------------|
-| Voice TTS | ElevenLabs (~$0.30/min) | TBD - Alternative API |
-| Voice STT | ElevenLabs | TBD - Alternative API |
-| Conversational AI | ElevenLabs Agent | TBD - Self-hosted/Alternative |
-| Vision | Google Gemini | Google Gemini (unchanged) |
-| Face Recognition | DeepFace (FREE) | DeepFace (FREE) |
-| Authentication | Clerk | Clerk (unchanged) |
+DJ-FoamBot is an automated radio DJ for the spray foam insulation industry. He:
+- Plays music continuously without prompting
+- Makes DJ announcements with sound effects
+- Has a custom cloned voice
+- Uses tools to control music playback and see through the camera
 
-### Goals
-- **Reduce costs** - Replace expensive ElevenLabs API with cheaper/free alternatives
-- **Maintain functionality** - Keep all the same features (vision, face recognition, todos, etc.)
-- **Same personality** - Pi-Guy keeps his sarcastic, witty character
-- **Self-hosted options** - Explore local TTS/STT models where possible
+## Technology Stack
 
-## Original Project
-
-The original ai-eyes project using ElevenLabs is still running live at:
-- **Repository**: https://github.com/MCERQUA/AI-eyes
-- **Live**: https://ai-guy.mikecerqua.ca (original version)
-
-This 2.0 version will run on its own infrastructure once complete.
+| Feature | Provider |
+|---------|----------|
+| Voice/Conversation | **Hume AI EVI v3** |
+| Voice Cloning | Hume AI Custom Voice |
+| Vision | Google Gemini 2.0 Flash |
+| Sound Effects | Browser-based text detection |
+| Authentication | Clerk |
 
 ## Features
 
-- **Voice Conversations** - Natural voice chat (TTS/STT provider TBD)
-- **Animated Face** - Sci-fi inspired face with blinking eyes, expressions, and waveform mouth
-- **Vision** - Camera integration with Google Gemini for image analysis
-- **Face Recognition** - Identifies people using DeepFace (runs locally, FREE)
-- **Wake Word** - Hands-free activation with "Pi Guy" or "Hey AI"
-- **Todo Lists** - Per-user task management via face recognition
-- **Web Search** - DuckDuckGo search integration (FREE)
-- **Server Commands** - Run whitelisted system commands
-- **Notes System** - Personal note-taking for the AI
-- **Long-term Memory** - Persistent memory storage
-- **Job Scheduling** - Schedule one-time or recurring tasks (cron-style)
-- **User Authentication** - Clerk integration with usage limits
+- **Animated Face** - Sci-fi inspired face with blinking eyes and expressions
+- **Custom Voice** - Cloned DJ voice using Hume AI
+- **Music Player** - 8 spray foam industry tracks
+- **DJ Soundboard** - Air horns, scratches, crowd cheers, and more
+- **Vision** - Camera integration with Gemini Vision API
+- **Wake Word** - Hands-free activation
 
-## Status
+## Track Library
 
-**Work in Progress** - Currently evaluating alternative voice APIs:
-- [ ] Evaluate TTS options (Coqui, Piper, Google Cloud TTS, etc.)
-- [ ] Evaluate STT options (Whisper, Vosk, Google Cloud STT, etc.)
-- [ ] Implement conversational flow without ElevenLabs Agent
-- [ ] Test and integrate chosen solutions
-- [ ] Deploy to production
+1. "Call Me Mrs. Sprayfoam" (2:50) - Phone: 706-386-8821
+2. "Espuma y Calidez 2" (4:05) - Spanish foam track
+3. "Foam Everything" (1:40) - Hype anthem
+4. "Foam It - We Insulate You Right" (1:40) - Phone: 416-893-8712
+5. "Hey Diddle Diddle" (2:44) - Playful remix
+6. "OG Polyurethane Gang" (1:08) - Hip-hop
+7. "Polyurethane Gang" (1:07) - Another banger
+8. "Comfy Life (Spanish Version)" (4:05) - Latin vibes
 
-## Architecture (Planned)
+## Configuration
+
+### Hume AI Setup
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Browser (Client)                         │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ Animated    │  │ Voice Agent │  │ Camera      │              │
-│  │ Face (CSS)  │  │ (New TTS)   │  │ (WebRTC)    │              │
-│  └─────────────┘  └──────┬──────┘  └──────┬──────┘              │
-└──────────────────────────┼────────────────┼─────────────────────┘
-                           │                │
-                      WebSocket        HTTP POST
-                           │                │
-┌──────────────────────────┴────────────────┴─────────────────────┐
-│                      VPS Server (Flask)                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ TTS Engine  │  │ STT Engine  │  │ LLM/Chat    │              │
-│  │ (TBD)       │  │ (TBD)       │  │ (TBD)       │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ Vision API  │  │ Face Recog  │  │ Jobs/Cron   │              │
-│  │ (Gemini)    │  │ (DeepFace)  │  │ Scheduler   │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │ Todos       │  │ Notes       │  │ Memory      │              │
-│  │ (SQLite)    │  │ (Files)     │  │ (Local)     │              │
-│  └─────────────┘  └─────────────┘  └─────────────┘              │
-└─────────────────────────────────────────────────────────────────┘
+Config ID: 3c824978-efa3-40df-bac2-023127b30e31
+Voice: DJ-FoamBot (Custom Cloned)
+Tools:
+  - play_music: Control music playback
+  - dj_soundboard: DJ sound effects
+  - look_and_see: Camera vision
 ```
 
-## Prerequisites
+### Environment Variables
 
-- **VPS/Server** with:
-  - Ubuntu 20.04+ (or similar Linux)
-  - Python 3.8+
-  - nginx
-  - Domain name with SSL (Let's Encrypt)
-- **API Keys**:
-  - [Google Gemini](https://makersuite.google.com/app/apikey) - Vision (paid, per-call)
-  - [Clerk](https://clerk.com) - Authentication (free tier available)
-  - TTS/STT provider API keys (TBD)
+```bash
+# Hume.ai Configuration
+HUME_API_KEY=your_api_key
+HUME_SECRET_KEY=your_secret_key
+HUME_CONFIG_ID=3c824978-efa3-40df-bac2-023127b30e31
+HUME_VOICE_ID=bdcf156c-6678-4720-9f91-46bf8063bd7f
 
-## Cost Comparison (Estimated)
+# Google Gemini (Vision)
+GEMINI_API_KEY=your_gemini_key
 
-| Feature | Original Cost | 2.0 Target |
-|---------|--------------|------------|
-| Voice (per minute) | ~$0.30 (ElevenLabs) | ~$0.01-0.05 or FREE |
-| Vision (per image) | ~$0.001 (Gemini) | ~$0.001 (unchanged) |
-| Face Recognition | FREE | FREE |
-| Authentication | FREE | FREE |
-| **Monthly estimate** | ~$50-100+ | ~$5-20 |
+# Clerk (Auth)
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+```
+
+## Files
+
+```
+├── index.html          # Main app (face + voice + camera)
+├── server.py           # Flask backend for vision + music API
+├── music/              # MP3 tracks for DJ playback
+├── sounds/             # DJ soundboard effects
+├── CLAUDE.md           # Development instructions
+├── TOOLS.md            # Tool reference (Hume AI)
+└── .env                # API keys (not in git)
+```
 
 ## Development
 
-This project is being actively developed. Check the `docs/` folder for:
-- `VOICE-ALTERNATIVES.md` - Research on TTS/STT alternatives
-- `IMPLEMENTATION-RECOMMENDATIONS.md` - Implementation plans
+### Running Locally
 
-## Contributing
+1. Set up environment variables in `.env`
+2. Start the server: `python3 server.py`
+3. Open `index.html` in browser
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
+### Updating the Hume Config
 
-## License
+```bash
+# Get current config
+curl -s "https://api.hume.ai/v0/evi/configs/$HUME_CONFIG_ID" \
+  -H "X-Hume-Api-Key: $HUME_API_KEY"
 
-MIT License - See [LICENSE](LICENSE) for details.
+# Create new version
+curl -X POST "https://api.hume.ai/v0/evi/configs/$HUME_CONFIG_ID" \
+  -H "X-Hume-Api-Key: $HUME_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "version_description": "Description of changes",
+    "prompt": {"text": "New prompt text"},
+    "voice": {"provider": "CUSTOM_VOICE", "name": "DJ-FoamBot"},
+    "tools": [
+      {"id": "tool-id-1"},
+      {"id": "tool-id-2"}
+    ]
+  }'
+```
+
+## Sound Effects
+
+Say these words and sounds play automatically:
+- `air horn` - Classic DJ horn
+- `scratch` - Vinyl scratching
+- `rewind` - Pull it back
+- `crowd cheer` - Crowd goes wild
+- `yeah` / `lets go` - Hype vocals
+- `bruh` / `sad trombone` - Fails
 
 ## Credits
 
-- Original [ai-eyes](https://github.com/MCERQUA/AI-eyes) project
+- [Hume AI](https://hume.ai) - Empathic Voice Interface
 - [Google Gemini](https://deepmind.google/technologies/gemini/) - Vision AI
-- [DeepFace](https://github.com/serengil/deepface) - Face recognition
 - [Clerk](https://clerk.com) - Authentication
 
 ---
 
-**Note**: This is version 2.0, a cost-optimized fork. The original ElevenLabs-powered version remains at [MCERQUA/AI-eyes](https://github.com/MCERQUA/AI-eyes).
+**Live at**: https://dj-foambot.mikecerqua.ca
