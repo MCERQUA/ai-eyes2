@@ -510,6 +510,7 @@
 
     <!-- Hidden elements -->
     <audio id="music-player" style="display: none;"></audio>
+    <audio id="music-player-2" style="display: none;"></audio>
     <canvas id="capture-canvas" style="display: none;"></canvas>
 
     <!-- ========== MODULAR JAVASCRIPT ========== -->
@@ -850,7 +851,11 @@
 
         // ===== MUSIC MODULE =====
         const MusicModule = {
-            audio: document.getElementById('music-player'),
+            // Dual audio elements for crossfade
+            audio1: document.getElementById('music-player'),
+            audio2: document.getElementById('music-player-2'),
+            activeAudio: 1,  // Which audio element is currently playing (1 or 2)
+            audio: null,     // Will point to active audio element
             button: document.getElementById('music-button'),
             nowPlaying: document.getElementById('now-playing'),
             trackName: document.getElementById('track-name'),
@@ -860,6 +865,8 @@
             currentMetadata: null,
             volume: 0.85,
             metadata: null,  // Will be loaded from server
+            crossfadeInProgress: false,
+            crossfadeDuration: 1500,  // 1.5 second crossfade
 
             // Text triggers for AI control
             playTriggers: ['spinning up', 'playing now', 'here comes', 'drop the beat', 'hit it', 'music time', 'lets play', "let's play", 'start the music', 'cue the music'],
@@ -893,16 +900,113 @@
             async init() {
                 console.log('MusicModule initializing...');
 
+                // Set initial active audio element
+                this.audio = this.audio1;
+
                 // Load metadata from server (non-blocking)
                 this.loadMetadata();
 
-                // Auto-play next track when current ends
-                this.audio.addEventListener('ended', () => {
-                    console.log('Track ended, playing next...');
-                    this.next();
+                // Auto-play next track when either audio element ends
+                this.audio1.addEventListener('ended', () => {
+                    if (this.activeAudio === 1) {
+                        console.log('Track ended on audio1, playing next...');
+                        this.next();
+                    }
+                });
+                this.audio2.addEventListener('ended', () => {
+                    if (this.activeAudio === 2) {
+                        console.log('Track ended on audio2, playing next...');
+                        this.next();
+                    }
                 });
 
-                console.log('MusicModule ready');
+                console.log('MusicModule ready with crossfade support');
+            },
+
+            // Get the inactive audio element for loading next track
+            getInactiveAudio() {
+                return this.activeAudio === 1 ? this.audio2 : this.audio1;
+            },
+
+            // Crossfade from current to next audio element
+            async crossfade(newTrackUrl, newMetadata) {
+                if (this.crossfadeInProgress) {
+                    console.log('Crossfade already in progress, skipping');
+                    return;
+                }
+
+                this.crossfadeInProgress = true;
+                const outgoing = this.activeAudio === 1 ? this.audio1 : this.audio2;
+                const incoming = this.activeAudio === 1 ? this.audio2 : this.audio1;
+
+                console.log('Starting crossfade:', outgoing === this.audio1 ? 'audio1->audio2' : 'audio2->audio1');
+
+                // Set up incoming audio
+                incoming.src = newTrackUrl;
+                incoming.volume = 0;
+
+                try {
+                    // Wait for incoming to be ready to play
+                    await new Promise((resolve, reject) => {
+                        const onCanPlay = () => {
+                            incoming.removeEventListener('canplay', onCanPlay);
+                            incoming.removeEventListener('error', onError);
+                            resolve();
+                        };
+                        const onError = (e) => {
+                            incoming.removeEventListener('canplay', onCanPlay);
+                            incoming.removeEventListener('error', onError);
+                            reject(e);
+                        };
+                        incoming.addEventListener('canplay', onCanPlay);
+                        incoming.addEventListener('error', onError);
+                        incoming.load();
+                    });
+
+                    // Start playing incoming (at volume 0)
+                    await incoming.play();
+
+                    // Perform the crossfade
+                    const steps = 30;
+                    const stepDuration = this.crossfadeDuration / steps;
+                    const outgoingStartVolume = outgoing.volume;
+
+                    for (let i = 1; i <= steps; i++) {
+                        const progress = i / steps;
+                        outgoing.volume = outgoingStartVolume * (1 - progress);
+                        incoming.volume = this.volume * progress;
+                        await new Promise(r => setTimeout(r, stepDuration));
+                    }
+
+                    // Finish up
+                    outgoing.pause();
+                    outgoing.currentTime = 0;
+                    outgoing.volume = this.volume;  // Reset for next use
+                    incoming.volume = this.volume;
+
+                    // Switch active audio
+                    this.activeAudio = this.activeAudio === 1 ? 2 : 1;
+                    this.audio = incoming;
+
+                    // Update state
+                    this.currentMetadata = newMetadata;
+                    this.currentTrack = newMetadata.filename;
+                    this.trackName.textContent = newMetadata.title || newMetadata.filename;
+                    this.isPlaying = true;
+                    this.button.classList.add('active');
+                    this.nowPlaying.classList.add('visible');
+
+                    console.log('Crossfade complete, now playing:', newMetadata.title);
+
+                } catch (error) {
+                    console.error('Crossfade error:', error);
+                    // Fallback: just play the new track directly
+                    incoming.volume = this.volume;
+                    this.audio = incoming;
+                    this.activeAudio = this.activeAudio === 1 ? 2 : 1;
+                } finally {
+                    this.crossfadeInProgress = false;
+                }
             },
 
             async loadMetadata() {
@@ -1006,8 +1110,9 @@
             },
 
             duck(shouldDuck) {
-                // Duck to 40% when DJ talks
-                this.audio.volume = shouldDuck ? this.volume * 0.4 : this.volume;
+                // Duck to 40% when DJ talks - apply to currently active audio
+                const activeAudioEl = this.activeAudio === 1 ? this.audio1 : this.audio2;
+                activeAudioEl.volume = shouldDuck ? this.volume * 0.4 : this.volume;
             },
 
             // Check AI text for music control triggers
@@ -1485,41 +1590,66 @@
             async handleSongTool(toolName, filename) {
                 const musicModule = window.musicPlayer;
 
-                // Play the specific track with smooth transition
+                // TWO-PHASE APPROACH:
+                // Phase 1: Fetch metadata and return context to DJ IMMEDIATELY
+                // Phase 2: Start crossfade in background while DJ talks
+
                 try {
                     const url = `${CONFIG.serverUrl}/api/music?action=play&track=${encodeURIComponent(filename)}`;
                     const response = await fetch(url);
                     const data = await response.json();
 
                     if (data.track) {
-                        // Fade out current track quickly if playing
-                        if (musicModule.isPlaying && !musicModule.audio.paused) {
-                            const fadeOut = setInterval(() => {
-                                if (musicModule.audio.volume > 0.1) {
-                                    musicModule.audio.volume -= 0.1;
-                                } else {
-                                    clearInterval(fadeOut);
-                                }
-                            }, 30);
-                            await new Promise(r => setTimeout(r, 150)); // Quick fade
+                        // Build intro context for DJ
+                        const track = data.track;
+                        let introContext = `Coming up next: ${track.title}.`;
+
+                        // Add DJ intro hints if available
+                        if (track.dj_intro_hints && track.dj_intro_hints.length > 0) {
+                            const randomHint = track.dj_intro_hints[Math.floor(Math.random() * track.dj_intro_hints.length)];
+                            introContext += ` ${randomHint}`;
                         }
 
-                        // Start new track
-                        musicModule.audio.src = `${CONFIG.serverUrl}/music/${data.track.filename || filename}`;
-                        musicModule.audio.volume = musicModule.volume;
-                        await musicModule.audio.play();
-                        musicModule.isPlaying = true;
-                        musicModule.currentTrack = filename;
-                        musicModule.currentMetadata = data.track;
-                        musicModule.button.classList.add('active');
-                        musicModule.nowPlaying.classList.add('visible');
-                        musicModule.trackName.textContent = data.track.title || filename;
-                        console.log('Song tool playing:', data.track.title);
+                        // Add phone number for sponsored tracks
+                        if (track.phone_number) {
+                            introContext += ` Phone: ${track.phone_number}.`;
+                        }
 
+                        // Add description
+                        if (track.description) {
+                            introContext += ` ${track.description}`;
+                        }
+
+                        console.log('Song tool: Returning context to DJ, starting crossfade async');
+
+                        // PHASE 2: Start crossfade in background (don't await!)
+                        // This runs while DJ is talking/introducing the song
+                        const trackUrl = `${CONFIG.serverUrl}/music/${track.filename || filename}`;
+
+                        // Use setTimeout to ensure response is sent first
+                        setTimeout(() => {
+                            if (musicModule.isPlaying) {
+                                // Crossfade from current to new
+                                musicModule.crossfade(trackUrl, track);
+                            } else {
+                                // Nothing playing, just start the new track
+                                musicModule.audio.src = trackUrl;
+                                musicModule.audio.volume = musicModule.volume;
+                                musicModule.audio.play();
+                                musicModule.isPlaying = true;
+                                musicModule.currentTrack = track.filename || filename;
+                                musicModule.currentMetadata = track;
+                                musicModule.button.classList.add('active');
+                                musicModule.nowPlaying.classList.add('visible');
+                                musicModule.trackName.textContent = track.title || filename;
+                            }
+                        }, 100);  // Small delay to ensure response goes out first
+
+                        // Return intro context immediately so DJ can talk while song loads
                         return {
                             success: true,
-                            message: `Now playing: ${data.track.title}. ${data.track.description || ''} ${data.track.phone_number ? 'Phone: ' + data.track.phone_number : ''}`,
-                            track: data.track
+                            message: introContext,
+                            track: track
                         };
                     }
                 } catch (error) {
