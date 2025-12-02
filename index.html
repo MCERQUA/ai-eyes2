@@ -1554,12 +1554,23 @@
                         'play_crowd_cheer': 'crowd_cheer',
                         'play_yeah': 'yeah',
                         'play_lets_go': 'lets_go',
-                        'play_sad_trombone': 'sad_trombone'
+                        'play_sad_trombone': 'sad_trombone',
+                        'play_foam_it_up': 'foam-it-up-lets-go'
+                    };
+
+                    // DJ Clips - pre-recorded segments where DJ should stay silent
+                    const djClipTools = {
+                        'play_dj_foambot_clip': { file: 'DJ-clips/DJ-FOAMBOT-CLIP.mp3', duration: 60 },
+                        'play_spfradio_quick': { file: 'DJ-clips/spfradio-quick-clip.mp3', duration: 16 },
+                        'play_bringing_heat': { file: 'DJ-clips/Sprayfoam-radio-bringing-the-heat.mp3', duration: 55 }
                     };
 
                     if (songTools[toolName]) {
                         // Individual song tool - play that specific track
                         result = await this.handleSongTool(toolName, songTools[toolName]);
+                    } else if (djClipTools[toolName]) {
+                        // DJ Clip - pre-recorded segment, duck music and play clip
+                        result = await this.handleDJClipTool(toolName, djClipTools[toolName]);
                     } else if (soundTools[toolName]) {
                         // Individual sound tool - play that sound effect
                         DJSoundboard.play(soundTools[toolName]);
@@ -1657,6 +1668,50 @@
                 }
 
                 return { success: false, error: 'Failed to play track' };
+            }
+
+            async handleDJClipTool(toolName, clipInfo) {
+                const musicModule = window.musicPlayer;
+
+                // DJ Clips are pre-recorded segments - DJ should stay silent
+                // Duck the music, play the clip, then restore music volume
+
+                try {
+                    console.log('Playing DJ clip:', toolName, clipInfo);
+
+                    // Create audio element for the clip
+                    const clipAudio = new Audio(`${CONFIG.serverUrl}/sounds/${clipInfo.file}`);
+                    clipAudio.volume = 0.9;  // Clip at 90% volume
+
+                    // Duck the music significantly for clips (to 20%)
+                    if (musicModule.isPlaying) {
+                        const activeAudio = musicModule.activeAudio === 1 ? musicModule.audio1 : musicModule.audio2;
+                        activeAudio.volume = musicModule.volume * 0.2;
+                    }
+
+                    // Play the clip
+                    await clipAudio.play();
+
+                    // Restore music volume when clip ends
+                    clipAudio.addEventListener('ended', () => {
+                        if (musicModule.isPlaying) {
+                            const activeAudio = musicModule.activeAudio === 1 ? musicModule.audio1 : musicModule.audio2;
+                            activeAudio.volume = musicModule.volume;
+                        }
+                        console.log('DJ clip ended, music restored');
+                    });
+
+                    // Return immediately - tell DJ to stay silent
+                    return {
+                        success: true,
+                        message: `Playing pre-recorded DJ clip (${clipInfo.duration} seconds). STAY COMPLETELY SILENT until the clip finishes. Do not talk over yourself.`,
+                        duration: clipInfo.duration
+                    };
+
+                } catch (error) {
+                    console.error('DJ clip error:', error);
+                    return { success: false, error: 'Failed to play DJ clip' };
+                }
             }
 
             async handleMusicTool(params) {
